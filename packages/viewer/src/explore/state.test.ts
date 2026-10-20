@@ -33,6 +33,13 @@ describe('explorer reducer', () => {
     expect(s.hiddenTypes.size).toBe(0);
     expect(explore(INITIAL, { type: 'view', id: 'data' }).view).toBe('data');
   });
+
+  it('shows every hidden type again at once', () => {
+    let s = explore(INITIAL, { type: 'toggleType', nodeType: 'database' });
+    s = explore(s, { type: 'toggleType', nodeType: 'service' });
+    expect(explore(s, { type: 'showAllTypes' }).hiddenTypes.size).toBe(0);
+    expect(explore(INITIAL, { type: 'showAllTypes' })).toBe(INITIAL);
+  });
 });
 
 describe('hash', () => {
