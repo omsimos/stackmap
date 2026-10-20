@@ -111,7 +111,7 @@ export function ViewerShell({
           </div>
           <ViewTabs controls={DIAGRAM_ID} />
           <span className="ml-auto shrink-0 self-center text-[14px] whitespace-nowrap text-fg-muted max-md:hidden">
-            {draft.nodes.length} nodes · {draft.edges.length} connections
+            {draft.nodes.length} {draft.nodes.length === 1 ? 'node' : 'nodes'} · {draft.edges.length} {draft.edges.length === 1 ? 'connection' : 'connections'}
           </span>
         </header>
         )}
