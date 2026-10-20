@@ -19,9 +19,12 @@ const COMPACT_GAP = { right: 72, max: 168 } as const;
 /** Widest layer gap a full-card layout grows to so its labels fit. */
 const FULL_GAP_MAX = 280;
 const GROUP_LAYER_GAP = 80;
-/** Past this many nodes (where validation warns to split) a layout isn't redone to make room for labels: each ELK run
- * grows with the graph, and a diagram that size is read zoomed in anyway. */
+/** Past this many nodes (where validation warns to split), or edges, a layout takes ELK's cheaper settings and isn't
+ * redone, to fix an edge against the flow or make room for labels: each ELK run grows roughly with the square of the
+ * graph, and a diagram that size is read zoomed in anyway. */
 const RETRY_LIMIT = 60;
+const RETRY_EDGE_LIMIT = 3 * RETRY_LIMIT;
+const isLarge = (draft: DiagramDraft) => draft.nodes.length > RETRY_LIMIT || draft.edges.length > RETRY_EDGE_LIMIT;
 const LAYER_GAP = 'elk.layered.spacing.nodeNodeBetweenLayers';
 const EDGE_RUN = 'elk.layered.spacing.edgeNodeBetweenLayers';
 const GROUP_PREFIX = 'group:';
@@ -40,7 +43,7 @@ function createElk(): { elk: InstanceType<typeof ElkBundled>; dispose: () => voi
   return { elk, dispose: () => elk.terminateWorker() };
 }
 
-const rootOptions = (direction: Direction, compact: boolean): Record<string, string> => ({
+const rootOptions = (direction: Direction, compact: boolean, large: boolean): Record<string, string> => ({
   'elk.algorithm': 'layered',
   'elk.direction': direction,
   'elk.edgeRouting': 'ORTHOGONAL',
@@ -53,7 +56,8 @@ const rootOptions = (direction: Direction, compact: boolean): Record<string, str
   // Full cards reserve a label pill in every gap; compact layouts start tight and widen for labels (compactLabels).
   'elk.layered.spacing.nodeNodeBetweenLayers': direction === 'RIGHT' ? String(compact ? COMPACT_GAP.right : 120) : '72',
   'elk.layered.spacing.edgeNodeBetweenLayers': '24',
-  'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+  // Network simplex straightens edges best but dominates the run time on large graphs.
+  'elk.layered.nodePlacement.strategy': large ? 'BRANDES_KOEPF' : 'NETWORK_SIMPLEX',
   // Draft order is the author's intended stacking; ELK otherwise reorders ties freely.
   'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
   // Absolute coordinates everywhere, so the viewer never walks the hierarchy.
@@ -133,7 +137,8 @@ export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram
   const compact = usesCompactCards(draft);
   const variant = compact ? 'compact' : 'full';
   const stages = draft.phases?.length ? stagePartitions(draft) : null;
-  const root: ElkNode = { id: 'root', layoutOptions: rootOptions(direction, compact), children: [], edges: [] };
+  const large = isLarge(draft);
+  const root: ElkNode = { id: 'root', layoutOptions: rootOptions(direction, compact, large), children: [], edges: [] };
   if (stages) {
     // Stages are ELK partitions: every node of stage i is laid out before (left of / above) stage i+1.
     root.layoutOptions!['elk.partitioning.activate'] = 'true';
@@ -231,6 +236,11 @@ export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram
         widen(graph);
       }
       const opts = graph.layoutOptions!;
+      // A large diagram is past the unwrapped width anyway, and its flow order isn't needed (no flips): lay it out once.
+      if (large && !stages) {
+        const wrapped = collect(draft, await elk.layout({ ...structuredClone(graph), layoutOptions: { ...opts, ...wrapOptions } }), direction, false, reversed);
+        return { laid: wrapped, flow: wrapped.nodes };
+      }
       const flat = await elk.layout(structuredClone(graph));
       // Wrapping would fold stages back onto each other.
       const wrap = (flat.width ?? 0) > MAX_UNWRAPPED_WIDTH && !stages;
@@ -242,7 +252,7 @@ export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram
     // A group that both feeds and is fed by another can only sit on one side of it, so some edge between them runs
     // against the flow: entering its target from the far side, it wraps round the diagram. Lay such an edge out
     // from its target (it then leaves and enters by the facing sides) and redo the layout once.
-    const flips = againstFlow(draft, flow, direction, reversed);
+    const flips = large ? [] : againstFlow(draft, flow, direction, reversed);
     if (flips.length) {
       reversed = new Set(reversed);
       for (const id of flips) reversed.has(id) ? reversed.delete(id) : reversed.add(id);
@@ -255,7 +265,7 @@ export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram
     // layout's gap can still be narrower than a label beside a branch. Two ways to make room are tried: wider gaps,
     // and wider gaps whose straight runs into and out of cards are themselves long enough to hold the label (left to
     // right a label lies along the run, top-down beside it). The best of the three layouts is kept.
-    if (spots.misfit > 0 && draft.nodes.length <= RETRY_LIMIT) {
+    if (spots.misfit > 0 && !large) {
       const cap = compact ? COMPACT_GAP.max : FULL_GAP_MAX;
       const defaultRun = Number(root.layoutOptions![EDGE_RUN]);
       const gap = Math.min(cap, Math.max(Number(root.layoutOptions![LAYER_GAP]), spots.misfit + (compact ? 24 : 48)));

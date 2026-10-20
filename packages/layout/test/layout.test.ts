@@ -214,6 +214,29 @@ describe('layoutDiagram', () => {
     expect(await layoutDiagram(groupedPlatform)).toEqual(await layoutDiagram(groupedPlatform));
   });
 
+  it('lays out a diagram past the retry limit in one quick, sound pass', async () => {
+    // 80 nodes in 8 groups with 240 edges: about 7s before large layouts took the cheap path, under 1s after.
+    const nodes = Array.from({ length: 80 }, (_, i) => node(`n${i}`, { group: `g${i % 8}` }));
+    const edges = [
+      ...nodes.slice(1).map((n, i) => ({ id: `t${i}`, from: `n${Math.floor(i / 2)}`, to: n.id })),
+      ...Array.from({ length: 161 }, (_, i) => ({ id: `x${i}`, from: `n${(i * 7) % 80}`, to: `n${(i * 13 + 5) % 80}` })),
+    ].filter((e) => e.from !== e.to);
+    const groups = Array.from({ length: 8 }, (_, i) => ({ id: `g${i}`, label: `G${i}` }));
+    const started = performance.now();
+    const out = await layoutDiagram(draft({ direction: 'RIGHT', groups, nodes, edges }));
+    expect(performance.now() - started).toBeLessThan(4_000);
+    // Wrapped rather than one long strip, and every card placed apart from the others.
+    expect(out.bounds.width).toBeLessThan(out.bounds.height * 4);
+    const rects = Object.values(out.nodes);
+    expect(rects).toHaveLength(80);
+    for (let i = 0; i < rects.length; i++)
+      for (let j = i + 1; j < rects.length; j++) {
+        const [a, b] = [rects[i]!, rects[j]!];
+        expect(a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height).toBe(false);
+      }
+    for (const e of edges) expect(out.edges[e.id]!.length).toBeGreaterThanOrEqual(2);
+  }, 30_000);
+
   it('rejects dangling references with a precise message', async () => {
     await expect(
       layoutDiagram(draft({ nodes: [node('a')], edges: [{ id: 'e1', from: 'a', to: 'ghost' }] })),
