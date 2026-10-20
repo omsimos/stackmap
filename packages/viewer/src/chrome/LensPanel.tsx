@@ -18,9 +18,21 @@ export function LensPanel({ origin }: { origin?: string }) {
       style={PANEL_STYLE}
     >
       <legend className="sr-only">Show node types</legend>
-      <p className="mb-1.5 px-1.5 text-[12.5px] font-medium text-fg-muted" aria-hidden="true">
-        Types
-      </p>
+      <div className="mb-1.5 flex items-center px-1.5">
+        <p className="text-[12.5px] font-medium text-fg-muted" aria-hidden="true">
+          Types
+        </p>
+        {/* Hiding every type leaves nothing to click back from on the canvas: one way back. */}
+        {state.hiddenTypes.size > 0 && (
+          <button
+            type="button"
+            onClick={() => dispatch({ type: 'showAllTypes' })}
+            className="ml-auto rounded-md px-1.5 py-0.5 text-[12.5px] text-fg-muted hover:bg-page hover:text-fg focus-visible:outline-2"
+          >
+            Show all
+          </button>
+        )}
+      </div>
       {countByType(draft.nodes).map(([type, count]) => (
         <label key={type} className="flex cursor-pointer items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-[13px] text-fg hover:bg-page">
           <input
