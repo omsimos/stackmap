@@ -44,6 +44,7 @@ export type ExploreAction =
   | { type: 'clear' }
   | { type: 'search'; query: string | null }
   | { type: 'toggleType'; nodeType: NodeType }
+  | { type: 'showAllTypes' }
   | { type: 'peek'; nodeType: NodeType | null }
   | { type: 'toggleTrace' }
   | { type: 'view'; id: string | null }
@@ -76,6 +77,8 @@ export function explore(s: ExploreState, a: ExploreAction): ExploreState {
       if (!hidden.delete(a.nodeType)) hidden.add(a.nodeType);
       return { ...s, hiddenTypes: hidden };
     }
+    case 'showAllTypes':
+      return s.hiddenTypes.size ? { ...s, hiddenTypes: new Set() } : s;
     case 'peek':
       return { ...s, peek: a.nodeType };
     case 'toggleTrace':

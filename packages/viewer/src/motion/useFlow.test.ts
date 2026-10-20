@@ -5,6 +5,7 @@ import { buildGraph } from '../explore/graph';
 import { INITIAL, type ExploreState } from '../explore/state';
 import type { Scene } from '../canvas/scene';
 import { FLOW, travelFor } from './flow';
+import { hasFlow } from './flowOf';
 import { flowOf } from './useFlow';
 
 //   a ─► b ─► c      d ─► b      c ─► a (error tone)
@@ -62,5 +63,28 @@ describe('which flow plays', () => {
     const byId = Object.fromEntries(flow({}).pulses.map((p) => [p.id, p]));
     expect(byId.db).toMatchObject({ tint: 'client', kind: 'async', glow: { rect: { x: 300, y: 0, width: 100, height: 50 }, radius: CARD.radius, tint: 'service' } });
     expect(byId.ab!.tint).toBe('service');
+  });
+});
+
+describe('whether there is a flow to play', () => {
+  const playable = (s: Partial<ExploreState>) => {
+    const state = { ...INITIAL, ...s };
+    return hasFlow(state, emphasis(draft, graph, state));
+  };
+
+  it('agrees with flowOf: something plays exactly when it says so', () => {
+    const cases: Partial<ExploreState>[] = [
+      {},
+      { hiddenTypes: new Set(['service', 'client'] as const) },
+      { selected: 'a' },
+      { route: { from: 'a', to: 'c' } },
+      { route: { from: 'c', to: 'd' } },
+    ];
+    for (const s of cases) expect(playable(s), JSON.stringify(s)).toBe(flow(s).pulses.length > 0);
+  });
+
+  it('has nothing to play once the lens hides every type', () => {
+    expect(playable({ hiddenTypes: new Set(['service', 'client'] as const) })).toBe(false);
+    expect(playable({})).toBe(true);
   });
 });

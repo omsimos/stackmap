@@ -25,6 +25,12 @@ function flowEdges(scene: Scene): Map<string, FlowEdge> {
   );
 }
 
+/** Whether flowOf has anything to play: a route's or selection's lit connections, otherwise any edge left undimmed. */
+export function hasFlow(state: Pick<ExploreState, 'route' | 'selected'>, em: Emphasis): boolean {
+  const edges = [...em.edges.values()];
+  return state.route || state.selected ? edges.some((e) => e.tint) : edges.some((e) => !e.dim);
+}
+
 /**
  * The flow that plays is whatever the explorer is showing: a route runs hop by hop from its start, a selection
  * (traced or not) runs through its lit connections, and otherwise everything not dimmed (by a view, the lens or

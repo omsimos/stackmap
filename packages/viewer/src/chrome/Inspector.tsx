@@ -382,9 +382,31 @@ export function Inspector({
   const Title = `h${headingLevel}` as const;
   const narrow = placement === 'auto';
   if (collapsed && toggle) {
+    // Collapsed, a selection or route would change nothing visible beyond the canvas (a phone starts collapsed):
+    // the toggle names what it would show, so a tapped card visibly has details waiting.
+    const name = (id: string) => draft.nodes.find((n) => n.id === id)?.card.title ?? id;
+    const showing = state.route ? `${name(state.route.from)} → ${name(state.route.to)}` : selected?.card.title;
     return (
       <aside aria-label="Inspector" className={`shrink-0 self-start rounded-2xl bg-panel p-1.5 ${narrow ? NARROW_COLLAPSED : ''}`} style={PANEL_STYLE}>
-        {toggle}
+        {showing ? (
+          <button
+            ref={toggleRef}
+            type="button"
+            aria-expanded={false}
+            aria-label={`Show inspector: ${showing}`}
+            title="Show inspector"
+            onClick={() => {
+              toggled.current = true;
+              onToggle();
+            }}
+            className="sm-press flex h-9 max-w-[220px] items-center gap-2 rounded-xl px-2.5 text-[13px] text-fg hover:bg-page"
+          >
+            <span className="truncate">{showing}</span>
+            <PanelRightOpen size={17} strokeWidth={1.75} className="shrink-0 text-fg-muted" />
+          </button>
+        ) : (
+          toggle
+        )}
       </aside>
     );
   }
