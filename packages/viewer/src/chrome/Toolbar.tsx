@@ -183,7 +183,8 @@ export function Toolbar({
         {state.routing && (
           <>
             {state.routing.next === 'from' ? 'Pick where the route starts' : 'Now pick where it ends'}
-            <span className="ml-2 text-fg-muted">Esc cancels</span>
+            {/* The space keeps the two phrases apart for screen readers; ml-2 alone only spaces them visually. */}{' '}
+            <span className="ml-1 text-fg-muted">Esc cancels</span>
           </>
         )}
       </p>
