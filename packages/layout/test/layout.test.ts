@@ -224,7 +224,8 @@ describe('layoutDiagram', () => {
     const groups = Array.from({ length: 8 }, (_, i) => ({ id: `g${i}`, label: `G${i}` }));
     const started = performance.now();
     const out = await layoutDiagram(draft({ direction: 'RIGHT', groups, nodes, edges }));
-    expect(performance.now() - started).toBeLessThan(4_000);
+    // CI runners are several times slower than a laptop (3-5s there); the old multi-pass path is still well past this.
+    expect(performance.now() - started).toBeLessThan(15_000);
     // Wrapped rather than one long strip, and every card placed apart from the others.
     expect(out.bounds.width).toBeLessThan(out.bounds.height * 4);
     const rects = Object.values(out.nodes);
