@@ -86,6 +86,18 @@ export function pointAt(points: Point[], d: number): Point {
   return points[0]!;
 }
 
+/** The stretch of a polyline from `from` to `to` px along it, its bends included. */
+export function sliceAt(points: Point[], from: number, to: number): Point[] {
+  const out = [pointAt(points, from)];
+  let walked = 0;
+  for (let i = 1; i < points.length - 1; i++) {
+    walked += Math.hypot(points[i]!.x - points[i - 1]!.x, points[i]!.y - points[i - 1]!.y);
+    if (walked > from && walked < to) out.push(points[i]!);
+  }
+  out.push(pointAt(points, to));
+  return out;
+}
+
 /** The point `t` (0–1) of the way along a polyline. */
 export const pointAlong = (points: Point[], t: number) => pointAt(points, Math.max(0, Math.min(1, t)) * lengthOf(points));
 

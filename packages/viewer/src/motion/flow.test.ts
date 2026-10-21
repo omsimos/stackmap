@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildGraph } from '../explore/graph';
-import { FLOW, glowAt, hopFlow, hopRanks, pointAlong, pulseFrame, roundedPolyline, travelFor, waveFlow, type FlowEdge } from './flow';
+import { FLOW, glowAt, hopFlow, hopRanks, pointAlong, pulseFrame, roundedPolyline, sliceAt, travelFor, waveFlow, type FlowEdge } from './flow';
 
 const edge = (id: string, from: string, to: string, length = 100): FlowEdge => ({
   id,
@@ -16,6 +16,17 @@ const edge = (id: string, from: string, to: string, length = 100): FlowEdge => (
 });
 
 describe('flow geometry', () => {
+  it('cuts the stretch of a polyline between two distances, keeping the bends inside it', () => {
+    const pts = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 30 },
+    ];
+    expect(sliceAt(pts, 5, 20)).toEqual([{ x: 5, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }]);
+    expect(sliceAt(pts, 12, 20)).toEqual([{ x: 10, y: 2 }, { x: 10, y: 10 }]);
+    expect(sliceAt(pts, 0, 99)).toEqual([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 30 }]);
+  });
+
   it('finds the point a fraction of the way along a polyline', () => {
     const pts = [
       { x: 0, y: 0 },
