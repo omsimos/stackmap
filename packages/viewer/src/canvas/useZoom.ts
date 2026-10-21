@@ -4,7 +4,7 @@ import { zoom, zoomIdentity, type D3ZoomEvent, type ZoomBehavior } from 'd3-zoom
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type { Point, Rect } from '@stackmap/core';
 import { clearStoredViewport, readStoredViewport } from '../live';
-import { CHROME_INSET, fitTransform, MAX_ZOOM, MIN_ZOOM, viewportRect, ZOOM_STEP, type Size, type Transform } from './viewport';
+import { CHROME_INSET, fitTransform, MAX_ZOOM, MIN_ZOOM, openingTransform, viewportRect, ZOOM_STEP, type Size, type Transform } from './viewport';
 
 /** Camera moves. Stable across renders, so consumers don't re-render on every pan/zoom frame. */
 /** `instant` skips the animation: drags and key auto-repeat would otherwise interrupt it every frame. */
@@ -68,6 +68,10 @@ export function useZoom(stageRef: RefObject<HTMLDivElement | null>, content: Rec
     const z = zoom<HTMLDivElement, unknown>()
       .scaleExtent([MIN_ZOOM, MAX_ZOOM])
       .filter(zoomFilter(wheel))
+      // While the camera moves the scene rides its own compositor layer, so a big diagram isn't repainted every
+      // frame; dropping it afterwards re-rasters the text sharp at the new zoom.
+      .on('start', () => el.setAttribute('data-moving', ''))
+      .on('end', () => el.removeAttribute('data-moving'))
       .on('zoom', (event: D3ZoomEvent<HTMLDivElement, unknown>) => {
         if (event.sourceEvent) pending.current = null; // the user took over
         const { x, y, k } = event.transform;
@@ -81,7 +85,7 @@ export function useZoom(stageRef: RefObject<HTMLDivElement | null>, content: Rec
 
     const size = { width: el.clientWidth, height: el.clientHeight };
     setStage(size);
-    sel.call(z.transform, toZoom(stored ?? fitTransform(content, size, { inset: CHROME_INSET })));
+    sel.call(z.transform, toZoom(stored ?? openingTransform(content, size, CHROME_INSET)));
     if (stored) clearStoredViewport();
     // A stage that mounts hidden or collapsed has no size to fit to; fit on its first real one instead.
     let fitted = stored !== null || (size.width > 0 && size.height > 0);
@@ -94,7 +98,7 @@ export function useZoom(stageRef: RefObject<HTMLDivElement | null>, content: Rec
             setStage(next);
             if (!fitted && next.width > 0 && next.height > 0) {
               fitted = true;
-              sel.call(z.transform, toZoom(fitTransform(content, next, { inset: CHROME_INSET })));
+              sel.call(z.transform, toZoom(openingTransform(content, next, CHROME_INSET)));
             }
           });
     observer?.observe(el);

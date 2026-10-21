@@ -30,6 +30,10 @@
   touch-action: none;
 }
 
+.sm-stage[data-moving] .sm-viewport {
+  will-change: transform;
+}
+
 /* Explorer emphasis (M3). Opacity only: layout never changes in the viewer. */
 .sm-card,
 .sm-edge-label {
@@ -47,6 +51,9 @@
 }
 .sm-route-handle {
   transition: opacity 150ms ease;
+}
+.sm-viewport[data-large] :is(.sm-card, .sm-edge-label, .sm-edge-path, .sm-route-handle) {
+  transition: none;
 }
 /* Zoomed out past reading size, labels are only noise; those on lit edges (a selection, a trace) stay. */
 .sm-viewport[data-labels='hidden']:not(.sm-exporting) .sm-edge-label:not([data-lit]) {

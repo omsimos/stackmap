@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { FLOW, glowAt, pointAt, PULSE, pulseFrame, ringAt, type Flow, type FlowPulse } from '../motion/flow';
+import type { Point } from '@stackmap/core';
+import { glowAt, pointAt, PULSE, pulseFrame, ringAt, sliceAt, type Flow, type FlowPulse } from '../motion/flow';
 import { setInFlight } from '../motion/inFlight';
 
 const accent = (p: FlowPulse) => `var(--sm-${p.tint}-accent)`;
-const polyline = (p: FlowPulse) => `M${p.path.map((q) => `${q.x} ${q.y}`).join('L')}`;
+const polyline = (path: Point[]) => `M${path.map((q) => `${q.x} ${q.y}`).join('L')}`;
 const PACKETS = [0, 1, 2];
 
 /** Drives the layer: calls `draw` with ms into playback, or null to hide every pulse; returns a stop. */
@@ -80,8 +81,8 @@ export function FlowLayer({ flow, width, height, speed = 1, clock }: { flow: Flo
           if (!show(t, !!f.trail)) return;
           const [from, to] = f.trail!;
           const start = Math.max(from, to - (to - from) * PULSE.trail[j]![0]);
-          t.style.strokeDasharray = `${to - start} ${p.length + FLOW.tail}`;
-          t.style.strokeDashoffset = `${-start}`;
+          // Only the lit stretch, not the whole edge dashed: a moving dash repaints the edge's whole box every frame.
+          t.setAttribute('d', polyline(sliceAt(p.path, start, to)));
         });
         if (show(el.flash, f.depart !== null)) {
           const r = ringAt(f.depart!, 2, 9);
@@ -121,7 +122,6 @@ export function FlowLayer({ flow, width, height, speed = 1, clock }: { flow: Flo
                 <path
                   key={j}
                   data-part="trail"
-                  d={polyline(p)}
                   style={{ ...hidden, fill: 'none', stroke: fill, strokeWidth: width, strokeOpacity: p.kind === 'sync' ? opacity : opacity * 0.4, strokeLinejoin: 'round' }}
                 />
               ))}

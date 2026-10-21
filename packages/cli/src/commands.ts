@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { extname, resolve } from 'node:path';
-import { layoutDiagram } from '@stackmap/layout';
+import { isLarge, layoutDiagram } from '@stackmap/layout';
 import { validateDiagram, type Diagnostic, type ValidationResult } from '@stackmap/schema';
 import { embedDiagram } from './embed';
 import { formatDiagnostic, summary } from './format';
@@ -63,9 +63,17 @@ export async function validateCommand(path: string, { json }: { json: boolean })
 }
 
 /** Validate, lay out and embed: the HTML is present exactly when the diagram has no errors. */
-export async function buildHtml(path: string, template: string): Promise<ValidationResult & { html?: string }> {
+export async function buildHtml(
+  path: string,
+  template: string,
+  progress?: (line: string) => void,
+): Promise<ValidationResult & { html?: string }> {
   const result = validateFile(path);
   if (!result.ok || !result.diagram) return result;
+  const { nodes, edges } = result.diagram;
+  // The result only prints once the layout is done; without this a big diagram looks hung for minutes.
+  if (progress && isLarge(result.diagram))
+    progress(`laying out ${nodes.length} nodes and ${edges.length} connections; a diagram this size can take a while`);
   return { ...result, html: embedDiagram(template, await layoutDiagram(result.diagram)) };
 }
 
@@ -76,18 +84,21 @@ export async function deliverCommand(
     out,
     style = plain,
     open,
+    progress,
   }: {
     template: string;
     out?: string;
     style?: Style;
     /** opens the written file (deliver --open): null once it did, else why it couldn't */
     open?: (file: string) => Promise<string | null>;
+    /** a line to show the user now, not with the result */
+    progress?: (line: string) => void;
   },
 ): Promise<CommandResult> {
   try {
     const target = out ?? path.slice(0, path.length - extname(path).length) + '.html';
     if (real(target) === real(path)) throw new CliError(`refusing to overwrite the input ${path}; pass -o <out.html>`);
-    const { html, diagnostics } = await buildHtml(path, template);
+    const { html, diagnostics } = await buildHtml(path, template, progress);
     // Diagnostics go to stderr so stdout carries only the receipt.
     if (html === undefined) return { code: 1, stdout: '', stderr: `${report(diagnostics)}${summary(diagnostics)}\n` };
     writeAtomic(target, html);

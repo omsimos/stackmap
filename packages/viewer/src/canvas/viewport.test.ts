@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampZoom, fitTransform, MAX_ZOOM, MIN_ZOOM, viewportRect } from './viewport';
+import { clampZoom, fitTransform, LABEL_MIN_ZOOM, MAX_ZOOM, MIN_ZOOM, openingTransform, viewportRect } from './viewport';
 
 describe('viewport math', () => {
   it('clamps zoom to [0.2, 2]', () => {
@@ -46,6 +46,25 @@ describe('viewport math', () => {
     const wide = fitTransform({ x: 0, y: 0, width: 30000, height: 400 }, { width: 800, height: 600 }, { inset });
     expect(wide.x).toBeCloseTo(24, 6);
     expect(wide.y + (400 * MIN_ZOOM) / 2).toBeCloseTo((80 + 600 - 76) / 2, 6);
+  });
+
+  it('opens a big diagram on a phone at a readable zoom from its start, while desktop still fits it whole', () => {
+    const inset = { top: 80, bottom: 76 };
+    const content = { x: 0, y: 0, width: 3000, height: 800 };
+    const phone = openingTransform(content, { width: 390, height: 844 }, inset);
+    expect(fitTransform(content, { width: 390, height: 844 }, { inset }).k).toBe(MIN_ZOOM);
+    expect(phone.k).toBe(LABEL_MIN_ZOOM);
+    expect(phone.x).toBeCloseTo(24, 6);
+    expect(phone.y + (800 * LABEL_MIN_ZOOM) / 2).toBeCloseTo((80 + 844 - 76) / 2, 6);
+    const desktop = { width: 1440, height: 900 };
+    expect(openingTransform(content, desktop, inset)).toEqual(fitTransform(content, desktop, { inset }));
+  });
+
+  it('leaves a phone opening alone when the diagram already fits readably', () => {
+    const inset = { top: 80, bottom: 76 };
+    const content = { x: 0, y: 0, width: 300, height: 300 };
+    const stage = { width: 390, height: 844 };
+    expect(openingTransform(content, stage, inset)).toEqual(fitTransform(content, stage, { inset }));
   });
 
   it('returns identity for a zero-size stage or empty content', () => {
