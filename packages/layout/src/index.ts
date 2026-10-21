@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { Worker as Thread } from 'node:worker_threads';
@@ -76,8 +77,7 @@ function threadElk(workerUrl: string): { elk: InstanceType<typeof ElkBundled>; d
 
 /**
  * ELK in-process where a global `self` exists: its worker script, run with `self` hidden, exports the in-process worker
- * instead of taking over `self.onmessage`. For Bun's large graphs: its workers ignore stack limits and stop ~20% short
- * of the main thread, too short for the densest diagrams.
+ * instead of taking over `self.onmessage`. Bun's fallback for a large graph where a child process can't be started.
  */
 function mainThreadElk(workerUrl: string): InstanceType<typeof ElkBundled> {
   const mod: { exports: { Worker?: new () => unknown } } = { exports: {} };
@@ -85,9 +85,48 @@ function mainThreadElk(workerUrl: string): InstanceType<typeof ElkBundled> {
   return new ElkApi({ workerFactory: () => new mod.exports.Worker!() as never });
 }
 
+/** Bun's stack is fixed at startup by the OS limit and a JavaScriptCore option, and its workers ignore stack limits. */
+const BUN_STACK_KB = 512 * 1024;
+const BUN_CHILD = `
+const { readFileSync } = require('node:fs');
+const [workerUrl, apiUrl] = process.argv.slice(1);
+const mod = { exports: {} };
+new Function('self', 'module', 'exports', readFileSync(workerUrl, 'utf8'))(undefined, mod, mod.exports);
+const elk = new (require(apiUrl))({ workerFactory: () => new mod.exports.Worker() });
+let input = '';
+process.stdin.on('data', (c) => (input += c)).on('end', () =>
+  elk.layout(JSON.parse(input)).then(
+    (out) => process.stdout.write(JSON.stringify(out)),
+    (e) => {
+      process.stderr.write(String((e && e.message) || e));
+      process.exit(1);
+    },
+  ),
+);
+`;
+
+/** For Bun's large graphs: ELK in a child Bun started with room for its recursion (the densest need ~100 MB). */
+function childElk(workerUrl: string): InstanceType<typeof ElkBundled> {
+  const apiUrl = createRequire(import.meta.url).resolve('elkjs/lib/elk-api.js');
+  // The option only when the limit rose: telling JavaScriptCore the stack is bigger than it is crashes instead of throwing.
+  const script = `if ulimit -s ${BUN_STACK_KB} 2>/dev/null; then export BUN_JSC_maxPerThreadStackUsage=${BUN_STACK_KB * 1024}; fi; exec "$0" -e "$1" "$2" "$3"`;
+  const layout = (graph: ElkNode) =>
+    new Promise<ElkNode>((resolve, reject) => {
+      const child = spawn('/bin/sh', ['-c', script, process.execPath, BUN_CHILD, workerUrl, apiUrl]);
+      let out = '';
+      let err = '';
+      child.stdout.on('data', (c: Buffer) => (out += c));
+      child.stderr.on('data', (c: Buffer) => (err += c));
+      child.on('error', reject);
+      child.on('close', (code) => (code === 0 ? resolve(JSON.parse(out) as ElkNode) : reject(new Error(err.trim() || `ELK exited with code ${code}`))));
+      child.stdin.end(JSON.stringify(graph));
+    });
+  return { layout } as never;
+}
+
 // elkjs's bundled build treats any runtime with a global `self` and no `document` as a web worker
 // (Bun, Deno), hijacks `self.onmessage` and never exports its in-process worker. Give those runtimes
-// a real Worker instead (in-process for a large graph, below). Node keeps the in-process one, except for a large graph: that gets a thread with room for
+// a real Worker instead (a roomier child process for a large graph, above). Node keeps the in-process one, except for a large graph: that gets a thread with room for
 // ELK's recursion (starting one costs more than laying out a small graph).
 function createElk(large: boolean): { elk: InstanceType<typeof ElkBundled>; dispose: () => void } {
   const g = globalThis as { self?: unknown; document?: unknown; Worker?: unknown };
@@ -95,7 +134,7 @@ function createElk(large: boolean): { elk: InstanceType<typeof ElkBundled>; disp
   if (node ? !large : g.document !== undefined || g.Worker === undefined) return { elk: new ElkBundled(), dispose: () => {} };
   const workerUrl = createRequire(import.meta.url).resolve('elkjs/lib/elk-worker.min.js');
   if (node) return threadElk(workerUrl);
-  if (large) return { elk: mainThreadElk(workerUrl), dispose: () => {} };
+  if (large) return { elk: process.platform === 'win32' ? mainThreadElk(workerUrl) : childElk(workerUrl), dispose: () => {} };
   const elk = new ElkApi({ workerUrl });
   // A real Worker keeps the process alive until terminated; the in-process one has no terminate().
   return { elk, dispose: () => elk.terminateWorker() };
