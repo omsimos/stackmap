@@ -19,6 +19,8 @@ import { LABEL_MIN_ZOOM, type Transform } from './viewport';
 import { CameraProvider, ContentProvider, SceneProvider, ViewportProvider } from './ViewportContext';
 
 const PAN_STEP = 80;
+/** Past this many cards (where validation warns) emphasis changes without fading: a fade repaints them all every frame. */
+const LARGE_SCENE = 60;
 
 function union(rects: Rect[]): Rect | null {
   if (!rects.length) return null;
@@ -209,6 +211,7 @@ export function DiagramCanvas({
             ref={sceneRef}
             className="sm-viewport absolute top-0 left-0 origin-top-left"
             data-labels={k < LABEL_MIN_ZOOM ? 'hidden' : undefined}
+            data-large={scene.cards.length > LARGE_SCENE || undefined}
             style={{ transform: `translate(${x}px, ${y}px) scale(${k})` }}
           >
             <SceneLayers scene={scene} emphasis={emphasis} selected={state.selected} flow={playing ? flow : null} speed={state.speed} />

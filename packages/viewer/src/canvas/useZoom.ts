@@ -68,6 +68,10 @@ export function useZoom(stageRef: RefObject<HTMLDivElement | null>, content: Rec
     const z = zoom<HTMLDivElement, unknown>()
       .scaleExtent([MIN_ZOOM, MAX_ZOOM])
       .filter(zoomFilter(wheel))
+      // While the camera moves the scene rides its own compositor layer, so a big diagram isn't repainted every
+      // frame; dropping it afterwards re-rasters the text sharp at the new zoom.
+      .on('start', () => el.setAttribute('data-moving', ''))
+      .on('end', () => el.removeAttribute('data-moving'))
       .on('zoom', (event: D3ZoomEvent<HTMLDivElement, unknown>) => {
         if (event.sourceEvent) pending.current = null; // the user took over
         const { x, y, k } = event.transform;
