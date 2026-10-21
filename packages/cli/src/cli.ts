@@ -75,7 +75,11 @@ async function run(argv: string[]): Promise<CommandResult> {
   } catch (e) {
     return { code: 2, stdout: '', stderr: `stackmap: internal error: viewer template missing (${(e as Error).message})\n` };
   }
-  if (command === 'deliver') return signed(command, await deliverCommand(file, { template, out: values.out, style, open: values.open ? openInBrowser : undefined }));
+  if (command === 'deliver') {
+    const open = values.open ? openInBrowser : undefined;
+    const progress = (line: string) => process.stderr.write(`${line}\n`);
+    return signed(command, await deliverCommand(file, { template, out: values.out, style, open, progress }));
+  }
 
   const port = values.port === undefined ? 4400 : Number(values.port);
   if (!Number.isInteger(port) || port < 0 || port > 65535) return usage(`--port must be 0-65535, got "${values.port}"`);

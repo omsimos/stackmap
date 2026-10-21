@@ -25,7 +25,8 @@ const GROUP_LAYER_GAP = 80;
  * graph, and a diagram that size is read zoomed in anyway. */
 const RETRY_LIMIT = 60;
 const RETRY_EDGE_LIMIT = 3 * RETRY_LIMIT;
-const isLarge = (draft: DiagramDraft) => draft.nodes.length > RETRY_LIMIT || draft.edges.length > RETRY_EDGE_LIMIT;
+/** A diagram the layout treats as large: the CLI says so before laying one out, since it can still take a while. */
+export const isLarge = (draft: DiagramDraft) => draft.nodes.length > RETRY_LIMIT || draft.edges.length > RETRY_EDGE_LIMIT;
 const LAYER_GAP = 'elk.layered.spacing.nodeNodeBetweenLayers';
 const EDGE_RUN = 'elk.layered.spacing.edgeNodeBetweenLayers';
 const GROUP_PREFIX = 'group:';

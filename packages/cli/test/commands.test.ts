@@ -77,6 +77,18 @@ describe('deliver', () => {
     expect(failed.stderr).toBe(`warning: couldn't open ${join(dir, 'platform.html')} in a browser (xdg-open not found)\n`);
   });
 
+  it('says up front when a layout will be slow, and stays quiet for a small one', async () => {
+    const lines: string[] = [];
+    await deliverCommand(file('small.json', groupedPlatform), { template: TEMPLATE, progress: (l) => lines.push(l) });
+    expect(lines).toEqual([]);
+    const nodes = Array.from({ length: 61 }, (_, i) => ({ id: `n${i}`, type: 'service', card: { title: `n${i}` } }));
+    const edges = nodes.slice(1).map((n, i) => ({ id: `e${i}`, from: `n${i}`, to: n.id }));
+    const big = { kind: 'architecture', title: 'Big', nodes, edges };
+    const r = await deliverCommand(file('big.json', big), { template: TEMPLATE, progress: (l) => lines.push(l) });
+    expect(r.code).toBe(0);
+    expect(lines).toEqual(['laying out 61 nodes and 60 connections; a diagram this size can take a while']);
+  }, 30_000);
+
   it('opens nothing when validation fails', async () => {
     let opened = false;
     const r = await deliverCommand(file('broken.json', broken), { template: TEMPLATE, open: async () => ((opened = true), null) });
