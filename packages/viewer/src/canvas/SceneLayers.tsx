@@ -12,6 +12,10 @@ import { useCamera } from './ViewportContext';
 import type { Flow } from '../motion/flow';
 import { FlowLayer } from './FlowLayer';
 
+// A selection re-renders the wrapper of every card it dims; the card inside depends only on its node.
+const NodeCardBody = memo(NodeCard);
+const StepCardBody = memo(StepCard);
+
 const ARROWS: Record<string, Direction> = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 export const focusCard = (id: string) => document.querySelector<HTMLElement>(`.sm-card[data-card-id="${CSS.escape(id)}"]`)?.focus();
 
@@ -197,7 +201,7 @@ const Card = memo(function Card({
       }}
       onKeyDown={onKeyDown}
     >
-      {compact ? <StepCard node={node} final={final} /> : <NodeCard node={node} />}
+      {compact ? <StepCardBody node={node} final={final} /> : <NodeCardBody node={node} />}
     </div>
   );
 });

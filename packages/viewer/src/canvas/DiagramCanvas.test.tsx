@@ -34,7 +34,7 @@ describe('DiagramCanvas', () => {
     expect(nodeCardRenders.mock.calls.length).toBe(rendersBefore);
   });
 
-  it('selecting a card re-renders only the cards whose emphasis or tab stop changed', () => {
+  it('selecting a card restyles the cards around it without re-rendering what is inside any of them', () => {
     const { container } = render(
       <ExploreProvider draft={commerceApiLayout.draft}>
         <DiagramCanvas diagram={commerceApiLayout} />
@@ -42,8 +42,9 @@ describe('DiagramCanvas', () => {
     );
     nodeCardRenders.mockClear();
     fireEvent.click(container.querySelector('.sm-card[data-card-id="orders"]')!);
-    // orders gains focus + the tab stop; edge (the default tab stop) loses it; sessions, not a neighbour, dims.
-    // The other three stay put.
-    expect([...new Set(nodeCardRenders.mock.calls.map(([id]) => id))].sort()).toEqual(['edge', 'orders', 'sessions']);
+    // orders gains focus; sessions, not a neighbour, dims. Only their wrappers change: a card's body depends on its node.
+    const emphasis = (id: string) => container.querySelector(`.sm-card[data-card-id="${id}"]`)!.getAttribute('data-emphasis');
+    expect([emphasis('orders'), emphasis('sessions')]).toEqual(['focus', 'dim']);
+    expect(nodeCardRenders).not.toHaveBeenCalled();
   });
 });
