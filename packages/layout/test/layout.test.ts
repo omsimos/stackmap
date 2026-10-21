@@ -238,6 +238,32 @@ describe('layoutDiagram', () => {
     for (const e of edges) expect(out.edges[e.id]!.length).toBeGreaterThanOrEqual(2);
   }, 30_000);
 
+  it('lays out the largest diagram the schema allows without overflowing the stack', async () => {
+    // 500 nodes and 2000 edges between random pairs, the schema's most: minutes with the small-diagram settings, and
+    // ELK on Node's main thread threw "Maximum call stack size exceeded".
+    // mulberry32: an LCG's low bits repeat too soon to make a graph this tangled.
+    let seed = 2;
+    const rand = (n: number) => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) % n;
+    };
+    const nodes = Array.from({ length: 500 }, (_, i) => node(`n${i}`, { group: `g${i % 50}` }));
+    const groups = Array.from({ length: 50 }, (_, i) => ({ id: `g${i}`, label: `G${i}` }));
+    const seen = new Set<string>();
+    const edges: { id: string; from: string; to: string; label?: string }[] = [];
+    while (edges.length < 2000) {
+      const [a, b] = [rand(500), rand(500)];
+      if (a === b || seen.has(`${a}>${b}`)) continue;
+      seen.add(`${a}>${b}`);
+      edges.push({ id: `e${edges.length}`, from: `n${a}`, to: `n${b}`, ...(edges.length % 3 === 0 && { label: 'calls' }) });
+    }
+    const out = await layoutDiagram(draft({ direction: 'RIGHT', groups, nodes, edges }));
+    expect(Object.keys(out.nodes)).toHaveLength(500);
+    for (const e of edges) expect(out.edges[e.id]!.length).toBeGreaterThanOrEqual(2);
+  }, 120_000);
+
   it('rejects dangling references with a precise message', async () => {
     await expect(
       layoutDiagram(draft({ nodes: [node('a')], edges: [{ id: 'e1', from: 'a', to: 'ghost' }] })),

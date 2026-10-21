@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { Worker as Thread } from 'node:worker_threads';
 import ElkApi from 'elkjs/lib/elk-api.js';
 import ElkBundled from 'elkjs/lib/elk.bundled.js';
 import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api';
@@ -29,15 +30,58 @@ const LAYER_GAP = 'elk.layered.spacing.nodeNodeBetweenLayers';
 const EDGE_RUN = 'elk.layered.spacing.edgeNodeBetweenLayers';
 const GROUP_PREFIX = 'group:';
 
+/** ELK recurses along each connected run of the graph: a few hundred connected nodes overflow Node's ~1 MB stack. */
+const ELK_STACK_MB = 256;
+
+// A thread for Node: without a global `self`, elkjs's worker script exports its in-process worker, bridged to the port.
+const NODE_THREAD = `
+const { parentPort, workerData } = require('node:worker_threads');
+const elk = new (require(workerData).Worker)();
+elk.onmessage = ({ data }) => {
+  try {
+    parentPort.postMessage(data);
+  } catch {
+    // A GWT exception doesn't survive the structured clone.
+    parentPort.postMessage({ id: data.id, error: { message: String((data.error && data.error.message) || data.error) } });
+  }
+};
+parentPort.on('message', (msg) => elk.postMessage(msg));
+`;
+
+function threadElk(workerUrl: string): { elk: InstanceType<typeof ElkBundled>; dispose: () => void } {
+  const thread = new Thread(NODE_THREAD, { eval: true, workerData: workerUrl, resourceLimits: { stackSizeMb: ELK_STACK_MB } });
+  const pending = new Set<number>();
+  const port = {
+    onmessage: null as ((answer: { data: unknown }) => void) | null,
+    postMessage(msg: { id: number }) {
+      pending.add(msg.id);
+      thread.postMessage(msg);
+    },
+    terminate: () => void thread.terminate(),
+  };
+  thread.on('message', (data: { id: number; error?: { message: string } }) => {
+    pending.delete(data.id);
+    port.onmessage?.({ data: data.error ? { ...data, error: new Error(data.error.message) } : data });
+  });
+  // A thread that dies (out of memory, say) answers nothing: fail what it was asked instead of hanging.
+  thread.on('error', (error) => {
+    for (const id of pending) port.onmessage?.({ data: { id, error } });
+    pending.clear();
+  });
+  const elk = new ElkApi({ workerFactory: () => port as never });
+  return { elk, dispose: () => elk.terminateWorker() };
+}
+
 // elkjs's bundled build treats any runtime with a global `self` and no `document` as a web worker
 // (Bun, Deno), hijacks `self.onmessage` and never exports its in-process worker. Give those runtimes
-// a real Worker instead; Node keeps the in-process one.
-function createElk(): { elk: InstanceType<typeof ElkBundled>; dispose: () => void } {
+// a real Worker instead. Node keeps the in-process one, except for a large graph: that gets a thread with room for
+// ELK's recursion (starting one costs more than laying out a small graph).
+function createElk(large: boolean): { elk: InstanceType<typeof ElkBundled>; dispose: () => void } {
   const g = globalThis as { self?: unknown; document?: unknown; Worker?: unknown };
-  if (g.self === undefined || g.document !== undefined || g.Worker === undefined) {
-    return { elk: new ElkBundled(), dispose: () => {} };
-  }
+  const node = g.self === undefined && g.document === undefined;
+  if (node ? !large : g.document !== undefined || g.Worker === undefined) return { elk: new ElkBundled(), dispose: () => {} };
   const workerUrl = createRequire(import.meta.url).resolve('elkjs/lib/elk-worker.min.js');
+  if (node) return threadElk(workerUrl);
   const elk = new ElkApi({ workerUrl });
   // A real Worker keeps the process alive until terminated; the in-process one has no terminate().
   return { elk, dispose: () => elk.terminateWorker() };
@@ -219,7 +263,7 @@ export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram
   let reversed = reversedEdges(draft);
   wire(reversed);
 
-  const { elk, dispose } = createElk();
+  const { elk, dispose } = createElk(large);
   try {
     const run = async (room?: { gap: number; run: number }) => {
       const graph = structuredClone(root);
