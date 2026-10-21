@@ -63,7 +63,7 @@ The agent writes `.stackmap/<name>/diagram.json`, validates and repairs it, and 
 
 ```json
 {
-  "$schema": "https://unpkg.com/@omsimos/stackmap@0.5.0/dist/stackmap.schema.json",
+  "$schema": "https://unpkg.com/@omsimos/stackmap@0.6.0/dist/stackmap.schema.json",
   "kind": "architecture",
   "title": "Bookshop",
   "direction": "DOWN",

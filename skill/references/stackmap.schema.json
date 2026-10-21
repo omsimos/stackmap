@@ -3,7 +3,7 @@
   "type": "object",
   "properties": {
     "$schema": {
-      "description": "Optional; set it to `https://unpkg.com/@omsimos/stackmap@0.5.0/dist/stackmap.schema.json` for editor completion.",
+      "description": "Optional; set it to `https://unpkg.com/@omsimos/stackmap@0.6.0/dist/stackmap.schema.json` for editor completion.",
       "type": "string"
     },
     "kind": {
@@ -510,5 +510,5 @@
   "additionalProperties": false,
   "title": "stackmap diagram",
   "description": "Agent-authored diagram. Layout is computed by stackmap; never give coordinates.",
-  "$id": "https://unpkg.com/@omsimos/stackmap@0.5.0/dist/stackmap.schema.json"
+  "$id": "https://unpkg.com/@omsimos/stackmap@0.6.0/dist/stackmap.schema.json"
 }

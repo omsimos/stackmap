@@ -7,7 +7,7 @@ Agent-authored diagram. Layout is computed by stackmap; never give coordinates. 
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `$schema` | string | no | Optional; set it to `https://unpkg.com/@omsimos/stackmap@0.5.0/dist/stackmap.schema.json` for editor completion |
+| `$schema` | string | no | Optional; set it to `https://unpkg.com/@omsimos/stackmap@0.6.0/dist/stackmap.schema.json` for editor completion |
 | `kind` | enum | yes | one of `architecture`, `dataflow`, `workflow`, `lifecycle`, `sequence` |
 | `density` | enum | no | Architecture and dataflow: compact cards (title, subtitle, brand, tag) for long chains or summaries. one of `compact` |
 | `title` | string | yes | non-blank |
