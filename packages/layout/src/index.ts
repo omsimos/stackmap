@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { Worker as Thread } from 'node:worker_threads';
 import ElkApi from 'elkjs/lib/elk-api.js';
@@ -73,9 +74,20 @@ function threadElk(workerUrl: string): { elk: InstanceType<typeof ElkBundled>; d
   return { elk, dispose: () => elk.terminateWorker() };
 }
 
+/**
+ * ELK in-process where a global `self` exists: its worker script, run with `self` hidden, exports the in-process worker
+ * instead of taking over `self.onmessage`. For Bun's large graphs: its workers ignore stack limits and stop ~20% short
+ * of the main thread, too short for the densest diagrams.
+ */
+function mainThreadElk(workerUrl: string): InstanceType<typeof ElkBundled> {
+  const mod: { exports: { Worker?: new () => unknown } } = { exports: {} };
+  new Function('self', 'module', 'exports', readFileSync(workerUrl, 'utf8'))(undefined, mod, mod.exports);
+  return new ElkApi({ workerFactory: () => new mod.exports.Worker!() as never });
+}
+
 // elkjs's bundled build treats any runtime with a global `self` and no `document` as a web worker
 // (Bun, Deno), hijacks `self.onmessage` and never exports its in-process worker. Give those runtimes
-// a real Worker instead. Node keeps the in-process one, except for a large graph: that gets a thread with room for
+// a real Worker instead (in-process for a large graph, below). Node keeps the in-process one, except for a large graph: that gets a thread with room for
 // ELK's recursion (starting one costs more than laying out a small graph).
 function createElk(large: boolean): { elk: InstanceType<typeof ElkBundled>; dispose: () => void } {
   const g = globalThis as { self?: unknown; document?: unknown; Worker?: unknown };
@@ -83,6 +95,7 @@ function createElk(large: boolean): { elk: InstanceType<typeof ElkBundled>; disp
   if (node ? !large : g.document !== undefined || g.Worker === undefined) return { elk: new ElkBundled(), dispose: () => {} };
   const workerUrl = createRequire(import.meta.url).resolve('elkjs/lib/elk-worker.min.js');
   if (node) return threadElk(workerUrl);
+  if (large) return { elk: mainThreadElk(workerUrl), dispose: () => {} };
   const elk = new ElkApi({ workerUrl });
   // A real Worker keeps the process alive until terminated; the in-process one has no terminate().
   return { elk, dispose: () => elk.terminateWorker() };
