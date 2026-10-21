@@ -58,8 +58,11 @@ const rootOptions = (direction: Direction, compact: boolean, large: boolean): Re
   'elk.layered.spacing.edgeNodeBetweenLayers': '24',
   // Network simplex straightens edges best but dominates the run time on large graphs.
   'elk.layered.nodePlacement.strategy': large ? 'BRANDES_KOEPF' : 'NETWORK_SIMPLEX',
-  // Draft order is the author's intended stacking; ELK otherwise reorders ties freely.
-  'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+  // Draft order is the author's intended stacking; ELK otherwise reorders ties freely. On a large graph keeping it
+  // costs ELK more than everything else together (60s against 2s for 200 flat nodes), and so do its extra crossing
+  // sweeps; a diagram that size is read zoomed in, not by its stacking.
+  'elk.layered.considerModelOrder.strategy': large ? 'NONE' : 'NODES_AND_EDGES',
+  ...(large && { 'elk.layered.thoroughness': '1' }),
   // Absolute coordinates everywhere, so the viewer never walks the hierarchy.
   'org.eclipse.elk.json.shapeCoords': 'ROOT',
   'org.eclipse.elk.json.edgeCoords': 'ROOT',
