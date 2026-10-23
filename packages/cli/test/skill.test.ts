@@ -25,6 +25,13 @@ describe('skill ↔ CLI version', () => {
 });
 
 describe('package.json', () => {
+  it('pins elkjs exactly, and to the version the layout package uses, so a CLI version always gives the same layout', () => {
+    const dep = (p: string) => (JSON.parse(readFileSync(new URL(p, import.meta.url), 'utf8')) as { dependencies: Record<string, string> }).dependencies.elkjs;
+    const cli = dep('../package.json');
+    expect(cli).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(dep('../../layout/package.json')).toBe(cli);
+  });
+
   it('names every diagram kind in its npm keywords, so a search for any of them finds the package', () => {
     const { keywords } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { keywords: string[] };
     for (const kind of DIAGRAM_KINDS) expect(keywords, kind).toContain(kind);
