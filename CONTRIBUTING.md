@@ -101,3 +101,7 @@ workflow's `release` job runs them after the checks pass.
   the bot commits `chore(release): x.y.z [skip ci]` to `main`, and then merges `main` back into `staging`.
   Release candidates only change the published package, so the repo keeps the last release's version between
   releases. Never edit these pins by hand.
+- **The website** deploys to production from CI, not from Vercel's push hook: after the `release` job, the
+  `deploy-site` job calls a Vercel Deploy Hook (the `VERCEL_DEPLOY_HOOK_MAIN` secret), which builds `main`'s tip.
+  That way the release commit, not the merge before it, is what goes live. Pull requests and `staging` still get
+  Vercel previews on push.

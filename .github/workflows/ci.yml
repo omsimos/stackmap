@@ -128,7 +128,7 @@ jobs:
 
   release:
     name: release
-    needs: [check, e2e]
+    needs: [check, site, e2e]
     # Off until launch: the repository variable RELEASE_ENABLED is set to true once v0.0.0 is tagged and staging exists.
     # Without the tag, semantic-release counts every commit and picks 1.0.0.
     if: github.event_name == 'push' && vars.RELEASE_ENABLED == 'true'
@@ -177,3 +177,20 @@ jobs:
           git checkout -B staging origin/staging
           git merge --no-ff origin/main -m "chore(release): merge main into staging [skip ci]"
           git push origin staging
+
+  deploy-site:
+    name: deploy site
+    needs: release
+    # Only main is production; Vercel no longer deploys it on push (site/vercel.json), so this is the one production deploy,
+    # made after the release job has pushed its version commit.
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The hook builds main's tip, so an older commit can never replace a newer one in production.
+      - name: Trigger the production deploy
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_MAIN }}
+        run: |
+          if [ -z "$HOOK" ]; then echo "::error::VERCEL_DEPLOY_HOOK_MAIN is not set"; exit 1; fi
+          curl --fail-with-body -sS -X POST "$HOOK"
