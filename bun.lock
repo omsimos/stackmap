@@ -26,7 +26,7 @@
         "stackmap": "./dist/cli.js",
       },
       "dependencies": {
-        "elkjs": "^0.12.0",
+        "elkjs": "0.12.0",
       },
       "devDependencies": {
         "@playwright/test": "^1.63.0",
@@ -47,7 +47,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@stackmap/core": "workspace:*",
-        "elkjs": "^0.12.0",
+        "elkjs": "0.12.0",
       },
     },
     "packages/schema": {
