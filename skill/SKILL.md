@@ -14,7 +14,7 @@ You write a typed diagram JSON. `stackmap` validates it, lays it out (you never 
 
 ## The CLI
 
-Run it as one literal command (each shell call starts fresh, so don't rely on variables set earlier):
+Run it as one literal command (each shell call starts fresh, so don't rely on shell variables you set in an earlier call; `STACKMAP_BIN` below is different, because it comes from the environment):
 
 ```bash
 npx -y @omsimos/stackmap@0.6.1 validate <diagram.json> --json
@@ -46,8 +46,12 @@ Unless the user names a location, each diagram lives in `.stackmap/<slug>/` unde
    - **Stop rule:** if two consecutive rounds don't reduce the number of errors, stop, keep the last file, and report the remaining diagnostics verbatim instead of guessing.
    - Warnings don't block delivery. Fix the cheap ones (a misspelt brand, a node you forgot to connect); mention the ones you leave.
 6. **Deliver** with `deliver <path> --open`: it writes `diagram.html` and opens it in the user's browser. A warning that no browser could be opened is not a failure (a headless or remote machine): the file is written, so give its path. Exit 1: back to step 5. Exit 2: an environment problem — report it; don't edit the diagram to "fix" it.
-7. **Check evidence** (repository diagrams): every `evidence[].file` must exist, e.g. `git ls-files --error-unmatch <files…>` from the repo root.
-8. **Report** the absolute path of `diagram.html`, the receipt line, and any warnings you left. Offer `serve` for iterating. Don't claim you looked at the rendering unless you did.
+7. **Check evidence** (repository diagrams): every `evidence[].file` must be tracked. From the repo root, with your diagram's path in place of `<diagram.json>`; exit 0 means they all are:
+
+   ```bash
+   node -e 'const d = require(require("path").resolve(process.argv[1])); process.stdout.write([...new Set(d.nodes.flatMap((n) => (n.evidence ?? []).map((e) => e.file)))].join("\0"))' <diagram.json> | xargs -0 git ls-files --error-unmatch --
+   ```
+8. **Report** the absolute path of `diagram.html`, the receipt line (the one line `deliver` prints on stdout: `delivered <path> · sha256 <hash> · <size> bytes`), and any warnings you left. Offer `serve` for iterating. Don't claim you looked at the rendering unless you did.
 
 ## Editing an existing diagram
 

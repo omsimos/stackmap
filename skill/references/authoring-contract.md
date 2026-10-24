@@ -66,7 +66,8 @@ Both are drawn as **swimlanes**: `lanes` are full-width rows in the order you li
 - **Phases** (`phases` with `nodes`) label the columns above the lanes: *Change → Build and verify → Promote*. Each phase starts after the previous one ends, so list them in order and put each node in at most one.
 - **Groups** in a lane frame a few neighbouring steps (*Blocking checks*); they can't span lanes or nest. `"tone": "security"` on a group marks a policy stop.
 - **Cards are compact:** `title`, `subtitle`, `brand` and a short `tag` pill (*human gate*, *owner: on-call*, *15 min stable*) — no rows, stats, footer or CTA. Put detail in `evidence` notes.
-- **Workflow nodes** use the component types (who or what does the step). **Lifecycle nodes** use the state types:
+- **Workflow nodes** use the component types, for who or what does the step: `client` for a person's step (open a pull request, merge), `service` for your own automation (a CI job, a script), `external` for a third party (a package registry, a hosting provider), and `security` for a gate that can block the flow (required checks, an approval). An outcome that ends or skips the flow (*No release*, *Build skipped*) takes the type of what decided it, sits in the exception lane, and says why in its `tag`.
+- **Lifecycle nodes** use the state types:
 
 | type | use for |
 |---|---|
@@ -115,7 +116,7 @@ One scenario, told in time. `nodes` are the participants, left to right in the o
 
 ## Cards
 
-A full card (architecture and dataflow) is a fixed 280px-wide tile; a compact card is 176px wide (title ≈ 15 characters, subtitle ≈ 17, tag ≈ 14). Only `title` is required; add sections when they carry information the reader needs at a glance.
+A full card (architecture and dataflow) is a fixed 280px-wide tile; a compact card is 176px wide (title ≈ 15 characters, subtitle ≈ 17, tag ≈ 14; the diagnostic's `maxChars` is exact). Only `title` is required; add sections when they carry information the reader needs at a glance.
 
 - `title` — the name people use (`orders-api`, `Orders`). `subtitle` — what it is (`PostgreSQL cluster`, `Payments API`).
 - `rows` (≤ 6) — key/value facts: size, port, runtime, schedule. `mono: true` for ports, IPs, paths. One row per label: two rows under the same label (a warning) usually means one fact split in two — merge the values (`file: hard · 16k: standard`).
@@ -131,10 +132,10 @@ When the diagram must explain a real codebase, the source is the authority for r
 
 1. **Map the slice.** Use manifests, entry points, route registrations, deployment/infra config (Dockerfiles, compose, Terraform, k8s, serverless configs) to find the runtime units. Read the entry, config and modules relevant to the request; follow imports and call sites until each responsibility reaches its real input, output or side effect. Read a connected slice, not the whole repo.
 2. **Trace ownership.** Draw an edge only where you saw the call, publish, read or write at a call site (or the config that wires it). A package that is installed but never called on the normal path is not an edge. Distinguish the service that requests work from the worker that executes it and the store that receives the bytes.
-3. **Record evidence while reading.** Put `evidence: [{ "file": "src/orders/db.ts", "line": 42, "note": "writes orders" }]` on nodes, with paths relative to the repo root (or the project root if it isn't a git repo). Notes are shared with the diagram: never quote secrets or internal hostnames in them.
+3. **Record evidence while reading.** Put `evidence: [{ "file": "src/orders/db.ts", "line": 42, "note": "writes orders" }]` on nodes, with paths relative to the repo root (or the project root if it isn't a git repo). Notes are shared with the diagram: never quote secrets or internal hostnames in them. Edges have no `evidence`: cite the line that makes an edge on the node that calls, publishes or writes, with a `note` naming the target (`publishes to npm`), or in the diagram's `notes` when no single node owns it.
    **Links (`source.url`)** — set it only when all of these hold, otherwise omit `source` (evidence still shows as `file:line`):
-   - the remote is on **GitHub or GitLab** (`git remote get-url origin`). Convert `git@github.com:owner/repo.git` to `https://github.com/owner/repo`; drop any `user:token@` part.
-   - the commit is **on the remote**: `git branch -r --contains HEAD` prints something. Otherwise use the newest pushed commit (`git merge-base HEAD origin/HEAD`) — but then only cite files unchanged since it.
+   - the remote is on **GitHub or GitLab** (`git remote get-url origin`). Convert `git@github.com:owner/repo.git` or `https://github.com/owner/repo.git` to `https://github.com/owner/repo`; drop any `user:token@` part.
+   - the commit is **on the remote**: `git branch -r --contains HEAD` prints something. Otherwise use the newest pushed commit, `git merge-base HEAD origin/HEAD` (without an `origin/HEAD`, use the default branch, such as `origin/main`), and cite only files unchanged since it: `git diff --quiet <that sha> -- <files…>` exits 0.
    - use the commit sha, not a branch: `https://github.com/<owner>/<repo>/blob/<sha>` (GitLab: `https://gitlab.com/<group>/<repo>/-/blob/<sha>`).
    - for a file with uncommitted changes (`git status --short`), leave out `line` — its numbers won't match the linked commit.
 4. **Name uncertainty.** If you couldn't confirm something (durability, who reads a table), say so in the evidence note or your report rather than drawing it as fact.
