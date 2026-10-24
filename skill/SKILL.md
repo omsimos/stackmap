@@ -3,7 +3,7 @@ name: stackmap
 description: Turn a system into an explorable architecture, data-flow, workflow, lifecycle or sequence diagram, delivered as one offline HTML file with a topology-dashboard look (dark and light), search, trace, routes, guided views, presentation mode and image/video export. Use when the user asks to diagram, map, visualize or explain the architecture, services, infrastructure, dependencies, data pipeline, process, runbook, release flow, state machine or request sequence of a codebase or of a described system, or to update such a diagram.
 license: MIT
 metadata:
-  version: "0.6.0"
+  version: "0.6.1"
   author: hyamero
   based_on: tt-a1i/archify (MIT)
 ---
@@ -17,9 +17,9 @@ You write a typed diagram JSON. `stackmap` validates it, lays it out (you never 
 Run it as one literal command (each shell call starts fresh, so don't rely on variables set earlier):
 
 ```bash
-npx -y @omsimos/stackmap@0.6.0 validate <diagram.json> --json
-npx -y @omsimos/stackmap@0.6.0 deliver  <diagram.json> --open
-npx -y @omsimos/stackmap@0.6.0 serve    <diagram.json>   # optional live preview; see below
+npx -y @omsimos/stackmap@0.6.1 validate <diagram.json> --json
+npx -y @omsimos/stackmap@0.6.1 deliver  <diagram.json> --open
+npx -y @omsimos/stackmap@0.6.1 serve    <diagram.json>   # optional live preview; see below
 ```
 
 If the environment variable `STACKMAP_BIN` is set, it is the path of a stackmap executable: use `"$STACKMAP_BIN" validate …` (quoted, exactly like that) instead of `npx …`.
