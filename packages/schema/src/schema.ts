@@ -117,7 +117,7 @@ const View = z.strictObject({
 
 export const DiagramDraftSchema = z
   .strictObject({
-    $schema: z.string().optional().meta({ description: `Optional; set it to ${'`'}https://unpkg.com/@omsimos/stackmap@0.6.0/dist/stackmap.schema.json${'`'} for editor completion.` }),
+    $schema: z.string().optional().meta({ description: `Optional; set it to ${'`'}https://unpkg.com/@omsimos/stackmap@0.6.1/dist/stackmap.schema.json${'`'} for editor completion.` }),
     kind: z.enum(DIAGRAM_KINDS),
     density: z
       .enum(['compact'])
@@ -145,7 +145,7 @@ export const DiagramDraftSchema = z
   .meta({ title: 'stackmap diagram', description: 'Agent-authored diagram. Layout is computed by stackmap; never give coordinates.' });
 
 /** Served from the published CLI package, so it is pinned to the same version as the validator. */
-export const SCHEMA_ID = 'https://unpkg.com/@omsimos/stackmap@0.6.0/dist/stackmap.schema.json';
+export const SCHEMA_ID = 'https://unpkg.com/@omsimos/stackmap@0.6.1/dist/stackmap.schema.json';
 
 export function buildJsonSchema(): Record<string, unknown> {
   return { ...z.toJSONSchema(DiagramDraftSchema, { target: 'draft-2020-12' }), $id: SCHEMA_ID };
