@@ -3,5 +3,6 @@
   "framework": "nextjs",
   "installCommand": "cd .. && bun install --frozen-lockfile",
   "buildCommand": "cd .. && bun run --filter @stackmap/viewer build && cd site && bun run build",
-  "ignoreCommand": "if [ -n \"$VERCEL_GIT_PREVIOUS_SHA\" ] && git cat-file -e \"$VERCEL_GIT_PREVIOUS_SHA^{commit}\" 2>/dev/null && git diff --quiet \"$VERCEL_GIT_PREVIOUS_SHA\" HEAD -- . ../packages ../package.json ../tsconfig.base.json ../bun.lock; then exit 0; else exit 1; fi"
+  "git": { "deploymentEnabled": { "main": false } },
+  "ignoreCommand": "sh scripts/ignore-build.sh"
 }

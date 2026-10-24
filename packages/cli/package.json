@@ -49,7 +49,7 @@
     "prepack": "bun run build && node scripts/prepack.mjs"
   },
   "dependencies": {
-    "elkjs": "^0.12.0"
+    "elkjs": "0.12.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

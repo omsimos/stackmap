@@ -79,7 +79,7 @@ export default function CliPage() {
       <div className="d-fig">
         <Terminal title="stackmap deliver" lines={[`$ stackmap deliver ${DEMO}`, `delivered ${file} · sha256 ${sha256} · ${bytes} bytes`]} />
       </div>
-      <P muted>The receipt is the only thing on stdout. Warnings go to stderr; with errors, nothing is written and the command exits 1.</P>
+      <P muted>The receipt is the only thing on stdout. Warnings go to stderr, and so does a notice when a large diagram starts laying out; with errors, nothing is written and the command exits 1.</P>
 
       <H2 id="serve">serve</H2>
       <Synopsis name="serve" />

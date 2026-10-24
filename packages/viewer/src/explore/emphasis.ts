@@ -26,7 +26,10 @@ export function searchMatches(draft: DiagramDraft, query: string): DiagramNode[]
   return hits.map((n, i) => ({ n, i })).sort((a, b) => prefix(a.n) - prefix(b.n) || a.i - b.i).map((x) => x.n);
 }
 
-export function emphasis(draft: DiagramDraft, graph: Graph, s: ExploreState): Emphasis {
+/** The explorer state emphasis reads; playback fields (playing, speed) and reveal don't change what's lit. */
+export type EmphasisInput = Pick<ExploreState, 'peek' | 'view' | 'query' | 'trace' | 'selected' | 'route' | 'routing' | 'hiddenTypes'>;
+
+export function emphasis(draft: DiagramDraft, graph: Graph, s: EmphasisInput): Emphasis {
   if (s.peek) return peekAt(draft, s.peek);
   const view = s.view ? new Set(draft.views?.find((v) => v.id === s.view)?.nodes ?? []) : null;
   const q = s.query?.trim() ? new Set(searchMatches(draft, s.query).map((n) => n.id)) : null;

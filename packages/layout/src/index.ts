@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { Worker as Thread } from 'node:worker_threads';
@@ -6,6 +6,7 @@ import ElkApi from 'elkjs/lib/elk-api.js';
 import ElkBundled from 'elkjs/lib/elk.bundled.js';
 import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api';
 import { cardSize, isLaneKind, usesCompactCards, type DiagramDraft, type Direction, type LaidOutDiagram, type Point, type Rect } from '@stackmap/core';
+import { runChild, threadPort } from './elk-io';
 import { placeLabels } from './labels';
 import { layoutLanes } from './lanes';
 import { layoutSequence } from './sequence';
@@ -53,31 +54,14 @@ parentPort.on('message', (msg) => elk.postMessage(msg));
 
 function threadElk(workerUrl: string): { elk: InstanceType<typeof ElkBundled>; dispose: () => void } {
   const thread = new Thread(NODE_THREAD, { eval: true, workerData: workerUrl, resourceLimits: { stackSizeMb: ELK_STACK_MB } });
-  const pending = new Set<number>();
-  const port = {
-    onmessage: null as ((answer: { data: unknown }) => void) | null,
-    postMessage(msg: { id: number }) {
-      pending.add(msg.id);
-      thread.postMessage(msg);
-    },
-    terminate: () => void thread.terminate(),
-  };
-  thread.on('message', (data: { id: number; error?: { message: string } }) => {
-    pending.delete(data.id);
-    port.onmessage?.({ data: data.error ? { ...data, error: new Error(data.error.message) } : data });
-  });
-  // A thread that dies (out of memory, say) answers nothing: fail what it was asked instead of hanging.
-  thread.on('error', (error) => {
-    for (const id of pending) port.onmessage?.({ data: { id, error } });
-    pending.clear();
-  });
+  const port = threadPort(thread);
   const elk = new ElkApi({ workerFactory: () => port as never });
   return { elk, dispose: () => elk.terminateWorker() };
 }
 
 /**
  * ELK in-process where a global `self` exists: its worker script, run with `self` hidden, exports the in-process worker
- * instead of taking over `self.onmessage`. Bun's fallback for a large graph where a child process can't be started.
+ * instead of taking over `self.onmessage`. Bun's large-graph host on Windows, where the child process (a POSIX shell with ulimit) isn't available.
  */
 function mainThreadElk(workerUrl: string): InstanceType<typeof ElkBundled> {
   const mod: { exports: { Worker?: new () => unknown } } = { exports: {} };
@@ -106,22 +90,19 @@ process.stdin.on('data', (c) => (input += c)).on('end', () =>
 `;
 
 /** For Bun's large graphs: ELK in a child Bun started with room for its recursion (the densest need ~100 MB). */
-function childElk(workerUrl: string): InstanceType<typeof ElkBundled> {
+function childElk(workerUrl: string): { elk: InstanceType<typeof ElkBundled>; dispose: () => void } {
   const apiUrl = createRequire(import.meta.url).resolve('elkjs/lib/elk-api.js');
   // The option only when the limit rose: telling JavaScriptCore the stack is bigger than it is crashes instead of throwing.
   const script = `if ulimit -s ${BUN_STACK_KB} 2>/dev/null; then export BUN_JSC_maxPerThreadStackUsage=${BUN_STACK_KB * 1024}; fi; exec "$0" -e "$1" "$2" "$3"`;
-  const layout = (graph: ElkNode) =>
-    new Promise<ElkNode>((resolve, reject) => {
-      const child = spawn('/bin/sh', ['-c', script, process.execPath, BUN_CHILD, workerUrl, apiUrl]);
-      let out = '';
-      let err = '';
-      child.stdout.on('data', (c: Buffer) => (out += c));
-      child.stderr.on('data', (c: Buffer) => (err += c));
-      child.on('error', reject);
-      child.on('close', (code) => (code === 0 ? resolve(JSON.parse(out) as ElkNode) : reject(new Error(err.trim() || `ELK exited with code ${code}`))));
-      child.stdin.end(JSON.stringify(graph));
-    });
-  return { layout } as never;
+  const live = new Set<ChildProcess>();
+  const layout = (graph: ElkNode) => {
+    const child = spawn('/bin/sh', ['-c', script, process.execPath, BUN_CHILD, workerUrl, apiUrl]);
+    live.add(child);
+    child.once('close', () => live.delete(child));
+    return runChild<ElkNode>(child, JSON.stringify(graph));
+  };
+  // A layout that threw elsewhere leaves its child running: kill it with the rest.
+  return { elk: { layout } as never, dispose: () => live.forEach((c) => c.kill()) };
 }
 
 // elkjs's bundled build treats any runtime with a global `self` and no `document` as a web worker
@@ -134,7 +115,7 @@ function createElk(large: boolean): { elk: InstanceType<typeof ElkBundled>; disp
   if (node ? !large : g.document !== undefined || g.Worker === undefined) return { elk: new ElkBundled(), dispose: () => {} };
   const workerUrl = createRequire(import.meta.url).resolve('elkjs/lib/elk-worker.min.js');
   if (node) return threadElk(workerUrl);
-  if (large) return { elk: process.platform === 'win32' ? mainThreadElk(workerUrl) : childElk(workerUrl), dispose: () => {} };
+  if (large) return process.platform === 'win32' ? { elk: mainThreadElk(workerUrl), dispose: () => {} } : childElk(workerUrl);
   const elk = new ElkApi({ workerUrl });
   // A real Worker keeps the process alive until terminated; the in-process one has no terminate().
   return { elk, dispose: () => elk.terminateWorker() };
