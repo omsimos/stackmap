@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
-import { deliverCommand, validateCommand, type CommandResult } from './commands';
+import { deliverCommand, failure, validateCommand, type CommandResult } from './commands';
 import { openInBrowser } from './open';
 import { serve } from './serve';
 import { styleFor } from './style';
@@ -90,9 +90,7 @@ async function run(argv: string[]): Promise<CommandResult> {
   return { code: 0, stdout: '', stderr: '' };
 }
 
-const result = await run(process.argv.slice(2)).catch(
-  (e: unknown): CommandResult => ({ code: 2, stdout: '', stderr: `stackmap: internal error: ${(e as Error).message}\n` }),
-);
+const result = await run(process.argv.slice(2)).catch(failure);
 process.stdout.write(result.stdout);
 process.stderr.write(result.stderr);
 process.exitCode = result.code;

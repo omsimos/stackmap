@@ -37,7 +37,7 @@ export function validateFile(path: string): ValidationResult {
 }
 
 // Exit 1 means "the diagram has errors" to the agent loop, so every other failure must be exit 2.
-const failure = (e: unknown): CommandResult => ({
+export const failure = (e: unknown): CommandResult => ({
   code: 2,
   stdout: '',
   stderr: `stackmap: ${e instanceof CliError ? '' : 'internal error: '}${(e as Error).message}\n`,

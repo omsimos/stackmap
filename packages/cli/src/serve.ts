@@ -144,11 +144,16 @@ export async function serve(path: string, { template, port = 4400, log = () => {
   // Editors save by writing a temp file and renaming it over the original, so watch the directory.
   // Watching starts before the first build, so a save during that layout is not lost.
   let timer: NodeJS.Timeout | undefined;
-  const watcher: FSWatcher = watch(dirname(path), (_event, name) => {
-    if (name !== null && name !== basename(path)) return;
-    clearTimeout(timer);
-    timer = setTimeout(schedule, DEBOUNCE_MS);
-  });
+  let watcher: FSWatcher;
+  try {
+    watcher = watch(dirname(path), (_event, name) => {
+      if (name !== null && name !== basename(path)) return;
+      clearTimeout(timer);
+      timer = setTimeout(schedule, DEBOUNCE_MS);
+    });
+  } catch (e) {
+    throw new CliError(`cannot watch ${dirname(path)}: ${(e as NodeJS.ErrnoException).code ?? (e as Error).message}`);
+  }
   // e.g. the directory was deleted (EPERM on Windows): report it instead of crashing the server.
   watcher.on('error', (e) =>
     publish({ ok: false, diagnostics: [diagnostic('io/watch-failed', `stopped watching: ${e.message}`, 'restart stackmap serve', path)] }),
