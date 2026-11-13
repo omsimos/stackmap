@@ -74,7 +74,7 @@ function Stage({ id, diagram, still, live, children }: { id: string; diagram: La
       ) : (
         still && (
           <div className="ev-still">
-            <FitDiagram still={still} width={932} height={686} pad={48} fill className="bg-transparent" />
+            <FitDiagram still={still} width={936} height={686} pad={48} fill className="bg-transparent" />
           </div>
         )
       )}
