@@ -257,3 +257,27 @@ test('on a phone the nav menu opens the site links and closes on Escape', async 
   await expect(page.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'false');
   await page.close();
 });
+
+test('with the walkthrough pinned, a hash lands on its section, a reload keeps its place and a broken hash is harmless', async ({ browser }) => {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'no-preference' });
+  const errors = collectErrors(page);
+  const top = (id: string) => page.evaluate((id) => Math.abs(document.getElementById(id)!.getBoundingClientRect().top), id);
+  await page.goto('/#50%');
+  await expect(page.locator('.how-pin')).toHaveAttribute('data-live', 'true');
+  expect(errors).toEqual([]);
+  // From another page, loaded and then through the router: both end below the runway, on the section.
+  await page.goto('/docs');
+  await page.goto('/#install');
+  await expect.poll(() => top('install')).toBeLessThan(140);
+  await page.goto('/docs');
+  await page.getByRole('link', { name: 'Install', exact: true }).first().click();
+  await expect(page).toHaveURL(/\/#install$/);
+  await expect.poll(() => top('install')).toBeLessThan(140);
+  // The address still names #install, but the reader has moved on: a reload restores where they were.
+  await page.evaluate(() => scrollTo({ top: 300, behavior: 'instant' }));
+  await page.waitForTimeout(300);
+  await page.reload();
+  await expect(page.locator('.how-pin')).toHaveAttribute('data-live', 'true');
+  expect(Math.abs((await page.evaluate(() => scrollY)) - 300)).toBeLessThan(60);
+  await page.close();
+});
