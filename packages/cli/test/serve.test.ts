@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { commerceApi } from '@stackmap/core/samples';
 import { EMPTY_DATA_BLOCK } from '../src/embed';
+import { CliError } from '../src/io';
 import { isLocalHost, LIVE_BLOCK_ID, serve, type ServeHandle } from '../src/serve';
 
 const TEMPLATE = `<!doctype html><html><head><title>stackmap</title></head><body><div id="root"></div>${EMPTY_DATA_BLOCK}</body></html>`;
@@ -192,6 +193,14 @@ describe('serve', () => {
     const lines: string[] = [];
     server = await serve(file, { template: TEMPLATE, port: 0, log: (l) => lines.push(l) });
     expect(lines).toEqual(['laying out 61 nodes and 60 connections; a diagram this size can take a while', '✓ d.json ready']);
+  });
+
+  it('fails with a plain message, and builds nothing, when the folder to watch is missing', async () => {
+    const lines: string[] = [];
+    const starting = serve(join(dir, 'nope', 'x.json'), { template: TEMPLATE, port: 0, log: (l) => lines.push(l) });
+    await expect(starting).rejects.toThrow(CliError);
+    await expect(starting).rejects.toThrow(/^cannot watch .+nope: ENOENT$/);
+    expect(lines).toEqual([]);
   });
 
   it('starts on an invalid file with the bare live template', async () => {
