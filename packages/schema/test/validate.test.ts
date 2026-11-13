@@ -124,6 +124,11 @@ describe('validateDiagram', () => {
       });
     });
 
+    it('a number out of range gets a number fix, not a text one', () => {
+      const withLine = (line: number) => base({ nodes: [node('a', { evidence: [{ file: 'a.ts', line }] }), node('b')] });
+      expect(diags(withLine(0))[0]).toMatchObject({ code: 'schema/too_small', subject: '/nodes/0/evidence/0/line', allowedFixes: ['make "line" greater than 0'] });
+    });
+
     it('limits say how far to cut', () => {
       const stats = Array.from({ length: 4 }, (_, i) => ({ value: String(i), label: 'x' }));
       expect(diags(base({ nodes: [node('a', { card: { title: 'a', stats } })] }))[0]).toMatchObject({

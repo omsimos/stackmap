@@ -54,6 +54,8 @@ function name(path: readonly PropertyKey[]): string {
   return typeof last === 'number' ? `item ${last} of "${String(path.at(-2))}"` : `"${String(last)}"`;
 }
 
+const NUMERIC: ReadonlySet<string> = new Set(['number', 'int', 'bigint']);
+
 function fixes(issue: z.core.$ZodIssue, received: unknown): string[] {
   const key = String(issue.path.at(-1) ?? 'value');
   switch (issue.code) {
@@ -64,9 +66,13 @@ function fixes(issue: z.core.$ZodIssue, received: unknown): string[] {
     case 'invalid_value':
       return [`use one of: ${issue.values.map(String).join(', ')}`];
     case 'too_big':
-      return issue.origin === 'array' ? [`keep at most ${issue.maximum} items`] : [`shorten "${key}" to at most ${issue.maximum} characters`];
+      if (issue.origin === 'array') return [`keep at most ${issue.maximum} items`];
+      if (NUMERIC.has(issue.origin)) return [`make "${key}" ${issue.inclusive ? 'at most' : 'less than'} ${issue.maximum}`];
+      return [`shorten "${key}" to at most ${issue.maximum} characters`];
     case 'too_small':
-      return issue.origin === 'array' ? [`add at least ${issue.minimum} item(s)`] : [`give "${key}" a non-empty value`];
+      if (issue.origin === 'array') return [`add at least ${issue.minimum} item(s)`];
+      if (NUMERIC.has(issue.origin)) return [`make "${key}" ${issue.inclusive ? 'at least' : 'greater than'} ${issue.minimum}`];
+      return [`give "${key}" a non-empty value`];
     case 'invalid_format':
       if (issue.format === 'regex' && issue.pattern === String(ID_PATTERN))
         return [`use a lowercase id such as "${toId(String(received ?? ''))}"`];
