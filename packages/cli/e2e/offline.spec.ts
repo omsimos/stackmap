@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { expect, test } from '@playwright/test';
 import { groupedPlatform } from '@stackmap/core/samples';
 
@@ -10,7 +10,7 @@ test('a delivered file renders from file:// with no network', async ({ page }) =
   const dir = mkdtempSync(join(tmpdir(), 'stackmap-e2e-'));
   const input = join(dir, 'platform.json');
   writeFileSync(input, JSON.stringify(groupedPlatform));
-  execFileSync('node', [new URL('../dist/cli.js', import.meta.url).pathname, 'deliver', input]);
+  execFileSync('node', [fileURLToPath(new URL('../dist/cli.js', import.meta.url)), 'deliver', input]);
 
   const requests: string[] = [];
   await page.route('**/*', (route) => {
@@ -29,6 +29,6 @@ test('a delivered file renders from file:// with no network', async ({ page }) =
 });
 
 test('the bare template says no diagram is embedded', async ({ page }) => {
-  await page.goto(pathToFileURL(new URL('../dist/viewer.html', import.meta.url).pathname).href);
+  await page.goto(new URL('../dist/viewer.html', import.meta.url).href);
   await expect(page.getByRole('status')).toHaveText(/No diagram embedded/);
 });
