@@ -248,6 +248,15 @@ describe('validateDiagram', () => {
       ]);
     });
 
+    it('an empty footer is a warning (it draws a blank band)', () => {
+      expect(only(base({ nodes: [node('a', { card: { title: 'a', footer: {} } }), node('b')] }), 'semantics/empty-footer')).toMatchObject([
+        { severity: 'warning', subject: '/nodes/0/card/footer', allowedFixes: ['add "left" or "right"', 'remove "footer"'] },
+      ]);
+      expect(only(base({ nodes: [node('a', { card: { title: 'a', footer: { right: { text: 'eu' } } } }), node('b')] }), 'semantics/empty-footer')).toEqual([]);
+      // Compact cards already reject the footer outright.
+      expect(only(base({ density: 'compact', nodes: [node('a', { card: { title: 'a', footer: {} } }), node('b')] }), 'semantics/empty-footer')).toEqual([]);
+    });
+
     it('a duplicate id rename suggestion is itself unused', () => {
       const d = base({ nodes: [node('a'), node('a-2'), node('a')], edges: [] });
       expect(only(d, 'semantics/duplicate-id')[0]!.allowedFixes[0]).toBe('rename to a unique id, e.g. "a-3"');
