@@ -6,10 +6,8 @@ import { Cmd } from '@/components/ui/Cmd';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { GitHubIcon, NpmIcon } from '@/components/ui/icons';
 
-export const ASK = 'Make an architecture diagram of this repository, backed by evidence from the code.';
-
 /** #install: the skill, the request to make, and the CLI on its own. */
-export function Install({ skill, cli }: { skill: string; cli: string }) {
+export function Install({ skill, cli, ask }: { skill: string; cli: string; ask: string }) {
   return (
     <section className="sec inst" id="install" aria-labelledby="inst-h">
       <div className="wrap">
@@ -38,8 +36,8 @@ export function Install({ skill, cli }: { skill: string; cli: string }) {
               <div>
                 <h3>Then ask</h3>
                 <div className="ask">
-                  <span>{ASK}</span>
-                  <CopyButton text={ASK} label="Copy the request" />
+                  <span>{ask}</span>
+                  <CopyButton text={ask} label="Copy the request" />
                 </div>
               </div>
             </li>

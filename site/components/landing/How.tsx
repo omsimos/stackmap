@@ -89,7 +89,7 @@ function Json({ title }: { title: string }) {
  * #how: four steps over one agent session. On a wide screen with motion it pins for 1.6 screens and the scroll
  * picks the step (step = ⌊progress × 4⌋); everywhere else it is its resting frame, the whole session and the map.
  */
-export function How({ demo, receipt, repair }: { demo: LaidOutDiagram; receipt: Receipt; repair: RepairRound }) {
+export function How({ demo, receipt, repair, ask }: { demo: LaidOutDiagram; receipt: Receipt; repair: RepairRound; ask: string }) {
   const pin = useRef<HTMLDivElement>(null);
   const stick = useRef<HTMLDivElement>(null);
   const fill = useRef<HTMLElement>(null);
@@ -188,7 +188,7 @@ export function How({ demo, receipt, repair }: { demo: LaidOutDiagram; receipt: 
                   <span className="ask-p" aria-hidden="true">
                     ›
                   </span>
-                  <span>Make an architecture diagram of this repository, backed by evidence from the code.</span>
+                  <span>{ask}</span>
                 </span>
                 <Tool s={1} at={0} verb="Write">
                   .stackmap/commerce-api/diagram.json

@@ -4,6 +4,7 @@ import type { LaidOutDiagram } from '@stackmap/core';
 import { Cmd } from '@/components/ui/Cmd';
 import { EXAMPLES } from '@/lib/catalog';
 import { stillOf } from '@/lib/diagrams';
+import { KIND_PAGES } from '@/lib/kinds';
 import { SITE } from '@/lib/site-data';
 import { spell } from '@/lib/words';
 import { HeroDemo } from './HeroDemo';
@@ -15,6 +16,8 @@ import { Reveals } from './Reveals';
 import './landing.css';
 
 const rise = (d: number) => ({ ['--d' as string]: `${d}ms` });
+// The one request the page makes: the session in #how answers the sentence #install hands over, the architecture docs' own.
+const ASK = KIND_PAGES.architecture.ask;
 
 /** The landing, after the canvas's "Landing" boards: one responsive page, desktop 1440 down to a 320 phone. */
 export function Landing({ demo, checkout }: { demo: LaidOutDiagram; checkout: Record<string, LaidOutDiagram> }) {
@@ -57,7 +60,7 @@ export function Landing({ demo, checkout }: { demo: LaidOutDiagram; checkout: Re
             <p className="t-lede">The agent writes a small typed diagram.json. stackmap checks it, lays it out and delivers a viewer you can open anywhere.</p>
           </header>
         </div>
-        <How demo={demo} receipt={SITE.receipt} repair={SITE.repair} />
+        <How demo={demo} receipt={SITE.receipt} repair={SITE.repair} ask={ASK} />
       </section>
 
       <section className="sec kinds" id="kinds" aria-labelledby="kinds-h">
@@ -81,7 +84,7 @@ export function Landing({ demo, checkout }: { demo: LaidOutDiagram; checkout: Re
       </section>
 
       <Proof receipt={SITE.receipt} />
-      <Install skill={SITE.install.skill} cli={SITE.install.cli} />
+      <Install skill={SITE.install.skill} cli={SITE.install.cli} ask={ASK} />
       <Reveals />
     </>
   );
