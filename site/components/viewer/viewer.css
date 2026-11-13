@@ -89,7 +89,8 @@
   }
 }
 @media (max-width: 767px) {
-  .ev-head .cnt {
+  .ev-head .cnt,
+  .ev-head .ev-icon {
     display: none;
   }
   .ev-stage {
