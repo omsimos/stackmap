@@ -20,6 +20,12 @@ describe('cardTextSlots', () => {
     expect(slot(card, '/rows/0/label')!.maxWidth).toBeCloseTo(248 - 12 - measureText(value, 'mono400', 12), 6);
   });
 
+  it('budgets a row label against the value as rendered: whitespace collapsed and trimmed', () => {
+    const card = { title: 't', rows: [{ label: 'Port', value: '   x      ' }, { label: 'Port', value: 'a   b' }] };
+    expect(slot(card, '/rows/0/label')!.maxWidth).toBeCloseTo(248 - 12 - measureText('x', 'sans400', 12), 6);
+    expect(slot(card, '/rows/1/label')!.maxWidth).toBeCloseTo(248 - 12 - measureText('a b', 'sans400', 12), 6);
+  });
+
   it('a long row value leaves the label its floor, not less', () => {
     const card = { title: 't', rows: [{ label: 'Connection', value: 'x'.repeat(200) }] };
     expect(slot(card, '/rows/0/label')!.maxWidth).toBeCloseTo(248 - 12 - 248 * 0.55, 6);
