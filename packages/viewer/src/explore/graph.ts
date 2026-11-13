@@ -64,11 +64,13 @@ export interface Route {
   reversed: boolean;
 }
 
-function walk(g: Graph, start: string, dir: 'out' | 'in', use: (e: string) => boolean): Set<string> {
+/** Everything reached from `start`; `stop` is reached but never walked through. */
+function walk(g: Graph, start: string, dir: 'out' | 'in', use: (e: string) => boolean, stop: string): Set<string> {
   const seen = new Set([start]);
   const queue = [start];
   while (queue.length) {
     const id = queue.shift()!;
+    if (id === stop) continue;
     for (const e of g[dir].get(id) ?? []) {
       if (!use(e)) continue;
       const next = dir === 'out' ? g.ends.get(e)!.to : g.ends.get(e)!.from;
@@ -86,9 +88,10 @@ type Found = Omit<Route, 'reversed'>;
 /** On a directed path a → b over the edges `use` allows; edges into a or out of b never count. */
 function directed(g: Graph, a: string, b: string, use: (e: string) => boolean): Found | null {
   if (!g.out.has(a) || !g.out.has(b) || a === b) return null;
-  const ahead = walk(g, a, 'out', use);
+  // Neither walk passes through the other end: what only a loop back through a or b reaches isn't on the way.
+  const ahead = walk(g, a, 'out', use, b);
   if (!ahead.has(b)) return null;
-  const behind = walk(g, b, 'in', use);
+  const behind = walk(g, b, 'in', use, a);
   const nodes = new Set([...ahead].filter((n) => behind.has(n)));
   const edges = new Set(
     [...g.ends].filter(([id, e]) => use(id) && nodes.has(e.from) && nodes.has(e.to) && e.to !== a && e.from !== b).map(([id]) => id),
