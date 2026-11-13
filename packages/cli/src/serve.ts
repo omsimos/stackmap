@@ -117,7 +117,35 @@ export async function serve(path: string, { template, port = 4400, log = () => {
     }
   };
 
-  await rebuild();
+  // One rebuild waits behind the running one however many saves arrive: only the latest content matters.
+  let queued = false;
+  let running = Promise.resolve();
+  const schedule = () => {
+    if (queued) return;
+    queued = true;
+    running = running
+      .then(() => {
+        queued = false;
+        return rebuild();
+      })
+      .catch((e: unknown) => log(`✗ rebuild failed: ${(e as Error).message}`));
+  };
+
+  // Editors save by writing a temp file and renaming it over the original, so watch the directory.
+  // Watching starts before the first build, so a save during that layout is not lost.
+  let timer: NodeJS.Timeout | undefined;
+  const watcher: FSWatcher = watch(dirname(path), (_event, name) => {
+    if (name !== null && name !== basename(path)) return;
+    clearTimeout(timer);
+    timer = setTimeout(schedule, DEBOUNCE_MS);
+  });
+  // e.g. the directory was deleted (EPERM on Windows): report it instead of crashing the server.
+  watcher.on('error', (e) =>
+    publish({ ok: false, diagnostics: [diagnostic('io/watch-failed', `stopped watching: ${e.message}`, 'restart stackmap serve', path)] }),
+  );
+
+  running = rebuild();
+  await running;
 
   let bound = 0;
   const server = createServer((req, res) => {
@@ -143,23 +171,10 @@ export async function serve(path: string, { template, port = 4400, log = () => {
     }
   });
 
-  // Editors save by writing a temp file and renaming it over the original, so watch the directory.
-  let timer: NodeJS.Timeout | undefined;
-  let running = Promise.resolve();
-  const watcher: FSWatcher = watch(dirname(path), (_event, name) => {
-    if (name !== null && name !== basename(path)) return;
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      running = running.then(rebuild).catch((e: unknown) => log(`✗ rebuild failed: ${(e as Error).message}`));
-    }, DEBOUNCE_MS);
-  });
-  // e.g. the directory was deleted (EPERM on Windows): report it instead of crashing the server.
-  watcher.on('error', (e) =>
-    publish({ ok: false, diagnostics: [diagnostic('io/watch-failed', `stopped watching: ${e.message}`, 'restart stackmap serve', path)] }),
-  );
   const keepAlive = setInterval(() => clients.forEach((res) => res.write(': ping\n\n')), 15_000);
 
   bound = await listen(server, port).catch((e) => {
+    clearTimeout(timer);
     watcher.close();
     clearInterval(keepAlive);
     throw e;

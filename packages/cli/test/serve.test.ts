@@ -176,6 +176,15 @@ describe('serve', () => {
     await sse.close();
   });
 
+  it('picks up an edit saved while the first layout is still running', async () => {
+    write(commerceApi);
+    const starting = serve(file, { template: TEMPLATE, port: 0 });
+    // serve has read the file and is awaiting its layout.
+    write(withTitle('Edited early'));
+    server = await starting;
+    await expect.poll(async () => titleOf(await page(server!.url)), { timeout: 8000 }).toBe('Edited early · stackmap');
+  });
+
   it('starts on an invalid file with the bare live template', async () => {
     write({ kind: 'architecture' });
     server = await serve(file, { template: TEMPLATE, port: 0 });
