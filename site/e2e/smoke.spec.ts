@@ -416,3 +416,21 @@ test('the docs search keeps its keys after a press on the panel, and ⌘K closes
   await expect(box).toHaveCount(0);
   await expect(from).toBeFocused();
 });
+
+test('pointing at a card or a group’s frame in a linked figure lights its JSON', async ({ page }) => {
+  await page.goto('/docs');
+  const fig = page.locator('.lf').first();
+  const card = fig.locator('.lf-stage [data-card-id]').first();
+  const frame = fig.locator('.lf-stage [data-frame-id]').first();
+  await card.scrollIntoViewIfNeeded();
+  // The drawing is inert, so the figure reads the pointer's position: move the mouse, there is nothing to hover.
+  const at = async (el: typeof card, dx?: number, dy?: number) => {
+    const r = (await el.boundingBox())!;
+    await page.mouse.move(r.x + (dx ?? r.width / 2), r.y + (dy ?? r.height / 2));
+  };
+  await at(card);
+  await expect(fig.locator('.cl.hl').first()).toHaveAttribute('data-o', `node:${await card.getAttribute('data-card-id')}`);
+  // A frame's corner has no card under it.
+  await at(frame, 3, 3);
+  await expect(fig.locator('.cl.hl').first()).toHaveAttribute('data-o', `group:${await frame.getAttribute('data-frame-id')}`);
+});
