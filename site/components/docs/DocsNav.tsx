@@ -96,8 +96,10 @@ function Sections({ onPick }: { onPick?: () => void }) {
     };
     place();
     void document.fonts?.ready.then(place);
-    addEventListener('resize', place);
-    return () => removeEventListener('resize', place);
+    // The phone sheet's copy mounts hidden and measures zero until it opens: the observer sees it take its size.
+    const ro = new ResizeObserver(place);
+    if (box.current) ro.observe(box.current);
+    return () => ro.disconnect();
   }, [section]);
   if (!page.sections.length) return null;
   return (
