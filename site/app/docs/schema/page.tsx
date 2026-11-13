@@ -11,6 +11,7 @@ import { JsonCode } from '@/components/ui/Code';
 import { formatJson } from '@/lib/data/json-format';
 import type { SchemaField, SchemaSection } from '@/lib/data/schema-ref';
 import { diagramOf } from '@/lib/diagrams';
+import { schemaUrl } from '@/lib/package';
 import { INTROS, SAMPLE_CARD, SAMPLES, diagramOutline } from '@/lib/schema-docs';
 import { blocks, notePieces, type Placement } from '@/lib/schema-page';
 import { OPEN_GRAPH } from '@/lib/seo';
@@ -115,7 +116,7 @@ export default function SchemaPage() {
         <p>
           <FileJson size={16} strokeWidth={1.75} className="ic" aria-hidden="true" />
           <span>
-            Machine-readable: <a href={`https://unpkg.com/@omsimos/stackmap@${SITE.version}/dist/stackmap.schema.json`}>stackmap.schema.json</a>. Set it as{' '}
+            Machine-readable: <a href={schemaUrl(SITE.version)}>stackmap.schema.json</a>. Set it as{' '}
             <C>$schema</C> for completion in your editor.
           </span>
         </p>

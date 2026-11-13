@@ -12,6 +12,7 @@ import { EXAMPLES } from '@/lib/catalog';
 import { SOURCES, stillOf } from '@/lib/diagrams';
 import { kindHref } from '@/lib/docs-nav';
 import { jsonOwners } from '@/lib/json-lines';
+import { schemaUrl } from '@/lib/package';
 import { OPEN_GRAPH } from '@/lib/seo';
 import { SITE } from '@/lib/site-data';
 import { spell } from '@/lib/words';
@@ -25,7 +26,7 @@ export const metadata: Metadata = {
 
 const ASK = 'Make an architecture diagram of this repository, backed by evidence from the code.';
 // The agent's file pins the schema to the installed CLI, so the example does too.
-const JSON_TEXT = SOURCES.quickStart.replace('{\n', `{\n  "$schema": "https://unpkg.com/@omsimos/stackmap@${SITE.version}/dist/stackmap.schema.json",\n`);
+const JSON_TEXT = SOURCES.quickStart.replace('{\n', `{\n  "$schema": "${schemaUrl(SITE.version)}",\n`);
 const FILE = '.stackmap/commerce-api/diagram.json';
 
 function Step({ n, id, title, children }: { n: number; id: string; title: string; children: React.ReactNode }) {
