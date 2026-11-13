@@ -1,4 +1,4 @@
-import type { Point, Rect } from '@stackmap/core';
+import { round, type Point, type Rect } from '@stackmap/core';
 
 // Orthogonal connector routing for the lane layouts, where ELK doesn't place the nodes. A sparse visibility
 // grid (the caller's channel lines plus every node's centre and port stubs), A* over (point, heading) with a
@@ -43,8 +43,6 @@ const DX = [1, 0, -1, 0];
 const DY = [0, 1, 0, -1];
 const SIDE_DIR: Record<Side, Dir> = { right: 0, bottom: 1, left: 2, top: 3 };
 
-const round = (n: number) => Math.round(n * 100) / 100;
-
 /** Port slots per side: the midpoint, then one either side, so edges of different tones leave separately. */
 const SLOTS = [0, -1, 1, -2, 2] as const;
 type Slot = (typeof SLOTS)[number];
@@ -73,7 +71,6 @@ const stubPoint = (r: Rect, side: Side, slot: Slot = 0): Point => {
 };
 
 const inflate = (r: Rect, m: number): Rect => ({ x: r.x - m, y: r.y - m, width: r.width + 2 * m, height: r.height + 2 * m });
-const inside = (p: Point, r: Rect) => p.x > r.x && p.x < r.x + r.width && p.y > r.y && p.y < r.y + r.height;
 /** Whether an axis-aligned segment passes through the rectangle's interior. */
 function crosses(a: Point, b: Point, r: Rect): boolean {
   const x0 = Math.min(a.x, b.x);

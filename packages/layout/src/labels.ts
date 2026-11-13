@@ -1,11 +1,10 @@
-import { measureText, polylineMidpoint, type Point, type Rect } from '@stackmap/core';
+import { measureText, polylineMidpoint, round, type Point, type Rect } from '@stackmap/core';
 
 // Edge label placement shared by the lane and ELK layouts: the viewer's pill (11px Geist, 8px padding each side,
 // 20px tall) on a run of the route, clear of cards, other labels and other edges' lines.
 
 const LABEL_H = 20;
 export const labelWidth = (text: string) => Math.ceil(measureText(text, 'sans400', 11)) + 16;
-const round = (n: number) => Math.round(n * 100) / 100;
 
 const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 /** Whether any axis-aligned segment of a route runs through the rectangle. */

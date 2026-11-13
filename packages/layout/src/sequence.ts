@@ -1,4 +1,4 @@
-import { cardSize, measureText, type DiagramDraft, type DiagramEdge, type LaidOutDiagram, type Point, type Rect, type SequenceLayout } from '@stackmap/core';
+import { cardSize, measureText, round, type DiagramDraft, type DiagramEdge, type LaidOutDiagram, type Point, type Rect, type SequenceLayout } from '@stackmap/core';
 
 // Sequence layout: participants across the top in draft order, messages top to bottom in edge order. The agent
 // gives only order; stackmap derives column spacing from the labels, rows from the messages and phases, and
@@ -23,8 +23,6 @@ export const ACTIVATION = { width: 10, nest: 5 };
 const MIN_BAR = 24;
 const LABEL = { face: 'sans400', size: 11.5, height: 16, gap: 6 } as const;
 const labelWidth = (text: string) => Math.ceil(measureText(text, LABEL.face, LABEL.size)) + 12;
-
-const round = (n: number) => Math.round(n * 100) / 100;
 
 export interface Bar {
   participant: string;
