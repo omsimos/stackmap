@@ -114,6 +114,13 @@ describe('kind rules', () => {
       ],
     };
     expect(codes(d)).toEqual(['warning:semantics/phase-order@/edges/1']);
+    // "trace" is in no phase, so placing it is a way out.
+    expect(validateDiagram(d).diagnostics[0]!.allowedFixes).toContain('put "trace" in a phase');
+  });
+
+  it('does not suggest phasing the source of a phase-order edge that already has a phase', () => {
+    const d = workflow({ phases: [{ id: 'p', label: 'P', nodes: ['build'] }, { id: 'q', label: 'Q', nodes: ['commit'] }] });
+    expect(validateDiagram(d).diagnostics[0]!.allowedFixes).toEqual(['mark it "kind": "return" if it loops back on purpose', 'reorder the phases']);
   });
 
   it('warns when a lane group would frame a step that is not in it', () => {

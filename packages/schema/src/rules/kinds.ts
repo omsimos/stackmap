@@ -219,7 +219,7 @@ function phaseDiagnostics(d: DiagramDraft): Diagnostic[] {
         ...error('semantics/phase-order', `/edges/${i}`, `Edge "${e.id}" leads back into phase "${into}" from a later phase`, { id: e.id, phase: into }, [
           'mark it "kind": "return" if it loops back on purpose',
           'reorder the phases',
-          `put "${e.from}" in a phase`,
+          ...(owner.has(e.from) ? [] : [`put "${e.from}" in a phase`]),
         ]),
         severity: 'warning',
       });
