@@ -339,3 +339,16 @@ test('the docs search loads its index again after a failed fetch', async ({ page
   await box.fill('serve');
   await expect(page.getByRole('option').first()).toBeVisible();
 });
+
+test('the hero viewer starts its flow only once it is on screen', async ({ browser }) => {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'no-preference' });
+  await page.goto('/#install');
+  const play = page.getByRole('group', { name: 'Try the viewer' }).getByRole('button', { name: /Play/ });
+  // Past the 1.1 s the flow waits for the intro.
+  await page.waitForTimeout(2200);
+  expect(await page.evaluate(() => scrollY)).toBeGreaterThan(900);
+  await expect(play).toHaveAttribute('aria-pressed', 'false');
+  await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
+  await expect(play).toHaveAttribute('aria-pressed', 'true');
+  await page.close();
+});

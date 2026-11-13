@@ -27,9 +27,15 @@ function useAutoplay(frame: RefObject<HTMLElement | null>, live: boolean, delay:
   const playing = useRef(state.playing);
   playing.current = state.playing;
   const paused = useRef(false);
+  const onScreen = useRef(false);
   useEffect(() => {
     if (!live || !motionAllowed()) return;
-    const t = setTimeout(() => playing.current || dispatch({ type: 'togglePlay' }), delay);
+    const t = setTimeout(() => {
+      if (playing.current) return;
+      // Off screen the start is left to the observer, as if it had paused a running flow.
+      if (onScreen.current) dispatch({ type: 'togglePlay' });
+      else paused.current = true;
+    }, delay);
     return () => clearTimeout(t);
   }, [live, delay, dispatch]);
   useEffect(() => {
@@ -37,6 +43,7 @@ function useAutoplay(frame: RefObject<HTMLElement | null>, live: boolean, delay:
     if (!live || !el) return;
     const io = new IntersectionObserver(([e]) => {
       if (!e) return;
+      onScreen.current = e.isIntersecting;
       if (!e.isIntersecting && playing.current) {
         paused.current = true;
         dispatch({ type: 'togglePlay' });
