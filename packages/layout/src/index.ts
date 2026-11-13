@@ -5,7 +5,7 @@ import { Worker as Thread } from 'node:worker_threads';
 import ElkApi from 'elkjs/lib/elk-api.js';
 import ElkBundled from 'elkjs/lib/elk.bundled.js';
 import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api';
-import { cardSize, isLaneKind, round, usesCompactCards, type DiagramDraft, type Direction, type LaidOutDiagram, type Point, type Rect } from '@stackmap/core';
+import { cardSize, isLaneKind, measureText, round, usesCompactCards, type DiagramDraft, type DiagramGroup, type Direction, type LaidOutDiagram, type Point, type Rect } from '@stackmap/core';
 import { runChild, threadPort } from './elk-io';
 import { placeLabels } from './labels';
 import { layoutLanes } from './lanes';
@@ -33,6 +33,8 @@ export const isLarge = (draft: DiagramDraft) => draft.nodes.length > RETRY_LIMIT
 const LAYER_GAP = 'elk.layered.spacing.nodeNodeBetweenLayers';
 const EDGE_RUN = 'elk.layered.spacing.edgeNodeBetweenLayers';
 const GROUP_PREFIX = 'group:';
+/** A group title's width from its frame's left edge, as the viewer draws it: 12.5px medium, 20px in, a shield on a trust boundary. */
+const titleWidth = (g: DiagramGroup) => 20 + (g.tone === 'security' ? 19 : 0) + Math.ceil(measureText(g.label, 'sans500', 12.5)) + 8;
 
 /** ELK recurses along each connected run of the graph: a few hundred connected nodes overflow Node's ~1 MB stack. */
 const ELK_STACK_MB = 256;
@@ -265,6 +267,12 @@ export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram
       layoutOptions: { 'elk.portConstraints': 'FIXED_SIDE', ...(direction === 'DOWN' ? { 'elk.alignment': 'TOP' } : {}), ...(partition === undefined ? {} : { 'elk.partitioning.partition': String(partition) }) },
       ports: [],
     });
+  }
+
+  // ELK sizes a container round its children; with none it is a 0×0 node. Give an empty group room for its title.
+  for (const g of draft.groups ?? []) {
+    const frame = groupNodes.get(g.id)!;
+    if (!frame.children!.length) Object.assign(frame, { width: titleWidth(g) + 12, height: GROUP_LABEL_BAND + 24 });
   }
 
   for (const e of draft.edges) {
