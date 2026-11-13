@@ -47,4 +47,21 @@ describe('DiagramCanvas', () => {
     expect([emphasis('orders'), emphasis('sessions')]).toEqual(['focus', 'dim']);
     expect(nodeCardRenders).not.toHaveBeenCalled();
   });
+
+  it('leaves modified keys to the browser: ⌘/Ctrl + and 0 zoom the page, Alt+← goes back', () => {
+    const { container } = render(
+      <ExploreProvider draft={commerceApiLayout.draft}>
+        <DiagramCanvas diagram={commerceApiLayout} />
+      </ExploreProvider>,
+    );
+    // fireEvent returns false when the handler prevented the default.
+    for (const target of [container.querySelector('.sm-stage')!, container.querySelector('.sm-card[data-card-id="orders"]')!]) {
+      expect(fireEvent.keyDown(target, { key: 'ArrowLeft' })).toBe(false);
+      expect(fireEvent.keyDown(target, { key: '=', metaKey: true })).toBe(true);
+      expect(fireEvent.keyDown(target, { key: '-', ctrlKey: true })).toBe(true);
+      expect(fireEvent.keyDown(target, { key: '0', ctrlKey: true })).toBe(true);
+      expect(fireEvent.keyDown(target, { key: 'ArrowLeft', altKey: true })).toBe(true);
+      expect(fireEvent.keyDown(target, { key: 'ArrowLeft', metaKey: true })).toBe(true);
+    }
+  });
 });

@@ -165,7 +165,7 @@ const Card = memo(function Card({
   const camera = useCamera();
   const accent = { '--sm-handle': `var(--sm-${node.type}-accent)` } as CSSProperties;
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.target !== e.currentTarget) return;
+    if (e.target !== e.currentTarget || e.metaKey || e.ctrlKey || e.altKey) return;
     const dir = ARROWS[e.key];
     if (dir) {
       const next = neighbourInDirection(rects, node.id, dir);
