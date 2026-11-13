@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { extname, resolve } from 'node:path';
+import { isLaneKind } from '@stackmap/core';
 import { isLarge, layoutDiagram } from '@stackmap/layout';
 import { validateDiagram, type Diagnostic, type ValidationResult } from '@stackmap/schema';
 import { embedDiagram } from './embed';
@@ -70,9 +71,10 @@ export async function buildHtml(
 ): Promise<ValidationResult & { html?: string }> {
   const result = validateFile(path);
   if (!result.ok || !result.diagram) return result;
-  const { nodes, edges } = result.diagram;
+  const { kind, nodes, edges } = result.diagram;
   // The result only prints once the layout is done; without this a big diagram looks hung for minutes.
-  if (progress && isLarge(result.diagram))
+  // Lane and sequence kinds have their own layouts, which take a second at their largest.
+  if (progress && !isLaneKind(kind) && kind !== 'sequence' && isLarge(result.diagram))
     progress(`laying out ${nodes.length} nodes and ${edges.length} connections; a diagram this size can take a while`);
   return { ...result, html: embedDiagram(template, await layoutDiagram(result.diagram)) };
 }

@@ -89,6 +89,19 @@ describe('deliver', () => {
     expect(lines).toEqual(['laying out 61 nodes and 60 connections; a diagram this size can take a while']);
   }, 30_000);
 
+  it('gives no slow-layout notice for kinds that never reach the slow layout', async () => {
+    const lines: string[] = [];
+    const nodes = Array.from({ length: 61 }, (_, i) => ({ id: `n${i}`, type: 'service', lane: 'a', card: { title: `n${i}` } }));
+    const edges = nodes.slice(1).map((n, i) => ({ id: `e${i}`, from: `n${i}`, to: n.id }));
+    const workflow = { kind: 'workflow', title: 'Steps', lanes: [{ id: 'a', label: 'A' }], nodes, edges };
+    const sequence = { kind: 'sequence', title: 'Calls', nodes: nodes.map(({ lane: _lane, ...n }) => n), edges };
+    for (const [name, d] of Object.entries({ workflow, sequence })) {
+      const r = await deliverCommand(file(`${name}.json`, d), { template: TEMPLATE, progress: (l) => lines.push(l) });
+      expect(r.code).toBe(0);
+    }
+    expect(lines).toEqual([]);
+  });
+
   it('opens nothing when validation fails', async () => {
     let opened = false;
     const r = await deliverCommand(file('broken.json', broken), { template: TEMPLATE, open: async () => ((opened = true), null) });
