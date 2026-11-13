@@ -92,6 +92,22 @@ test('"/" opens search; Enter selects the first match and centres it', async ({ 
   expect(Math.abs(c.y + c.height / 2 - (stage.y + (stage.height + 80 - 76) / 2))).toBeLessThan(2);
 });
 
+test('a search result that was off screen ends up centred, not panned past', async ({ page }) => {
+  for (let i = 0; i < 4; i++) await page.getByRole('button', { name: 'Zoom in' }).click();
+  await page.locator('.sm-stage').focus();
+  for (let i = 0; i < 12; i++) await page.keyboard.press('ArrowLeft');
+  await settle(page);
+  await page.keyboard.press('/');
+  await page.getByRole('combobox', { name: 'Search nodes' }).fill('sess');
+  await page.getByRole('combobox', { name: 'Search nodes' }).press('Enter');
+  await expect(card(page, 'sessions')).toBeFocused();
+  await settle(page);
+  const stage = (await page.locator('.sm-stage').boundingBox())!;
+  const c = (await card(page, 'sessions').boundingBox())!;
+  expect(Math.abs(c.x + c.width / 2 - (stage.x + stage.width / 2))).toBeLessThan(2);
+  expect(Math.abs(c.y + c.height / 2 - (stage.y + (stage.height + 80 - 76) / 2))).toBeLessThan(2);
+});
+
 test('search tolerates regex characters and whitespace', async ({ page }) => {
   await page.getByRole('button', { name: /Search nodes/ }).click();
   const box = page.getByRole('combobox', { name: 'Search nodes' });

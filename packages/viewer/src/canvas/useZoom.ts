@@ -54,7 +54,7 @@ export function useZoom(stageRef: RefObject<HTMLDivElement | null>, content: Rec
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, k: 1 });
   const current = useRef(transform);
   current.current = transform;
-  // Where an animated pan is heading, so a press during the animation adds to it instead of losing the rest.
+  // Where an animated move is heading, so a move made on the way builds on it, not on the camera mid-flight.
   const pending = useRef<Transform | null>(null);
   const [stage, setStage] = useState<Size>({ width: 0, height: 0 });
   const behavior = useRef<ZoomBehavior<HTMLDivElement, unknown> | null>(null);
@@ -119,6 +119,18 @@ export function useZoom(stageRef: RefObject<HTMLDivElement | null>, content: Rec
     [stageRef],
   );
 
+  const head = useCallback((z: ZoomBehavior<HTMLDivElement, unknown>, el: HTMLDivElement, next: Transform) => {
+    pending.current = next;
+    select(el)
+      .transition()
+      .duration(duration())
+      .call(z.transform, toZoom(next))
+      // Cut short by another move (a zoom, a drag) it is no longer where the camera is heading.
+      .on('end interrupt cancel', () => {
+        if (pending.current === next) pending.current = null;
+      });
+  }, []);
+
   const zoomIn = useCallback(
     () => animate((z, el) => select(el).transition().duration(duration()).call(z.scaleBy, ZOOM_STEP)),
     [animate],
@@ -129,25 +141,24 @@ export function useZoom(stageRef: RefObject<HTMLDivElement | null>, content: Rec
   );
   const fit = useCallback(
     () =>
-      animate((z, el) =>
-        select(el)
-          .transition()
-          .duration(duration())
-          .call(z.transform, toZoom(fitTransform(content, { width: el.clientWidth, height: el.clientHeight }, { inset: CHROME_INSET }))),
-      ),
-    [animate, content],
+      animate((z, el) => head(z, el, fitTransform(content, { width: el.clientWidth, height: el.clientHeight }, { inset: CHROME_INSET }))),
+    [animate, head, content],
   );
   // Centre between the chrome bands, not on the raw stage, so the node doesn't sit under the toolbar.
   const centerOn = useCallback(
     (p: Point, opts?: MoveOptions) =>
       animate((z, el) => {
         const anchor: [number, number] = [el.clientWidth / 2, (el.clientHeight + CHROME_INSET.top - CHROME_INSET.bottom) / 2];
-        pending.current = null;
         // A 0ms transition still lands a frame later, so rapid instant moves would cancel each other.
-        if (opts?.instant) select(el).interrupt().call(z.translateTo, p.x, p.y, anchor);
-        else select(el).transition().duration(duration()).call(z.translateTo, p.x, p.y, anchor);
+        if (opts?.instant) {
+          pending.current = null;
+          select(el).interrupt().call(z.translateTo, p.x, p.y, anchor);
+          return;
+        }
+        const { k } = pending.current ?? current.current;
+        head(z, el, { x: anchor[0] - p.x * k, y: anchor[1] - p.y * k, k });
       }),
-    [animate],
+    [animate, head],
   );
 
   const fitRect = useCallback(
@@ -161,9 +172,9 @@ export function useZoom(stageRef: RefObject<HTMLDivElement | null>, content: Rec
           t.k <= 1
             ? t
             : { x: (size.width - r.width) / 2 - r.x, y: CHROME_INSET.top + (band - r.height) / 2 - r.y, k: 1 };
-        select(el).transition().duration(duration()).call(z.transform, toZoom(next));
+        head(z, el, next);
       }),
-    [animate],
+    [animate, head],
   );
   const panBy = useCallback(
     (dx: number, dy: number, opts?: MoveOptions) =>
@@ -175,33 +186,27 @@ export function useZoom(stageRef: RefObject<HTMLDivElement | null>, content: Rec
           select(el).interrupt().call(z.transform, toZoom(next));
           return;
         }
-        pending.current = next;
-        select(el)
-          .transition()
-          .duration(duration())
-          .call(z.transform, toZoom(next))
-          // Cut short by another move (a zoom, a fit) it is no longer where the camera is heading.
-          .on('end interrupt cancel', () => {
-            if (pending.current === next) pending.current = null;
-          });
+        head(z, el, next);
       }),
-    [animate],
+    [animate, head],
   );
   const ensureVisible = useCallback(
     (r: Rect) =>
       animate((z, el) => {
-        const { k } = current.current;
+        // Against where the camera will be: a reveal centring this card may have only just set off.
+        const base = pending.current ?? current.current;
+        const { k } = base;
         const margin = 24 / k;
-        const full = viewportRect(current.current, { width: el.clientWidth, height: el.clientHeight });
+        const full = viewportRect(base, { width: el.clientWidth, height: el.clientHeight });
         // Treat the overlay bands as off-screen so a focused card never ends up under the chrome.
         const v = { ...full, y: full.y + CHROME_INSET.top / k, height: full.height - (CHROME_INSET.top + CHROME_INSET.bottom) / k };
         const shift = (lo: number, size: number, vlo: number, vsize: number) =>
           lo - margin < vlo ? lo - margin - vlo : lo + size + margin > vlo + vsize ? lo + size + margin - (vlo + vsize) : 0;
         const dx = shift(r.x, r.width, v.x, v.width);
         const dy = shift(r.y, r.height, v.y, v.height);
-        if (dx || dy) select(el).transition().duration(duration()).call(z.translateBy, -dx, -dy);
+        if (dx || dy) head(z, el, { x: base.x - dx * k, y: base.y - dy * k, k });
       }),
-    [animate],
+    [animate, head],
   );
 
   const camera = useMemo<Camera>(

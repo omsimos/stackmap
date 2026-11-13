@@ -111,3 +111,20 @@ test('a pan cut short by a zoom is forgotten: the next arrow press keeps the zoo
   expect(panned.k).toBeCloseTo(zoomed.k, 5);
   expect(panned.x).toBeCloseTo(zoomed.x - 80, 0);
 });
+
+test('a search result that was off screen glides to the centre and stays there', async ({ page }) => {
+  await page.goto('/?page=sample');
+  await settled(page);
+  for (let i = 0; i < 4; i++) await page.getByRole('button', { name: 'Zoom in' }).click();
+  await page.locator('.sm-stage').focus();
+  for (let i = 0; i < 12; i++) await page.keyboard.press('ArrowLeft');
+  await page.waitForTimeout(400);
+  await page.keyboard.press('/');
+  await page.getByRole('combobox', { name: 'Search nodes' }).fill('sess');
+  await page.getByRole('combobox', { name: 'Search nodes' }).press('Enter');
+  await page.waitForTimeout(500);
+  const stage = (await page.locator('.sm-stage').boundingBox())!;
+  const c = (await page.locator('.sm-card[data-card-id="sessions"]').boundingBox())!;
+  expect(Math.abs(c.x + c.width / 2 - (stage.x + stage.width / 2))).toBeLessThan(2);
+  expect(Math.abs(c.y + c.height / 2 - (stage.y + (stage.height + 80 - 76) / 2))).toBeLessThan(2);
+});
