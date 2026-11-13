@@ -12,6 +12,7 @@ import { EXAMPLES } from '@/lib/catalog';
 import { SOURCES, stillOf } from '@/lib/diagrams';
 import { kindHref } from '@/lib/docs-nav';
 import { jsonOwners } from '@/lib/json-lines';
+import { KIND_PAGES } from '@/lib/kinds';
 import { schemaUrl } from '@/lib/package';
 import { OPEN_GRAPH } from '@/lib/seo';
 import { SITE } from '@/lib/site-data';
@@ -24,7 +25,7 @@ export const metadata: Metadata = {
   openGraph: { ...OPEN_GRAPH, url: '/docs' },
 };
 
-const ASK = 'Make an architecture diagram of this repository, backed by evidence from the code.';
+const ASK = KIND_PAGES.architecture.ask;
 // The agent's file pins the schema to the installed CLI, so the example does too.
 const JSON_TEXT = SOURCES.quickStart.replace('{\n', `{\n  "$schema": "${schemaUrl(SITE.version)}",\n`);
 const FILE = '.stackmap/commerce-api/diagram.json';
