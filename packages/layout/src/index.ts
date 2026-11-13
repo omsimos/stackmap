@@ -325,7 +325,8 @@ export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram
         widen(graph);
       }
       const opts = graph.layoutOptions!;
-      // A large diagram is past the unwrapped width anyway, and its flow order isn't needed (no flips): lay it out once.
+      // A large diagram is laid out once: ELK's own wrap decision (by aspect ratio alone) stands in for the width gate,
+      // which needs a first run to measure, and the flow order isn't needed (no flips).
       if (large && !stages) {
         return { laid: collect(draft, await elk.layout({ ...structuredClone(graph), layoutOptions: { ...opts, ...wrapOptions } }), direction, false, reversed), flat: null };
       }
