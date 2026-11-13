@@ -281,3 +281,31 @@ test('with the walkthrough pinned, a hash lands on its section, a reload keeps i
   expect(Math.abs((await page.evaluate(() => scrollY)) - 300)).toBeLessThan(60);
   await page.close();
 });
+
+test('a reload part-way down the landing never blanks what is already on screen', async ({ browser }) => {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'no-preference' });
+  // The lowest opacity any reveal on screen ever has, sampled every frame from before the page's own script.
+  await page.addInitScript(() => {
+    const w = window as unknown as { lowest: number };
+    w.lowest = 1;
+    const tick = () => {
+      for (const el of document.querySelectorAll('[data-reveal]')) {
+        const r = el.getBoundingClientRect();
+        const s = getComputedStyle(el);
+        if (r.bottom > 0 && r.top < innerHeight * 0.9) w.lowest = Math.min(w.lowest, s.visibility === 'hidden' ? 0 : Number(s.opacity));
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  await page.goto('/');
+  await expect(page.locator('.how-pin')).toHaveAttribute('data-live', 'true');
+  await page.evaluate(() => scrollTo({ top: document.getElementById('how')!.getBoundingClientRect().top + scrollY - 100, behavior: 'instant' }));
+  await page.waitForTimeout(1200);
+  await page.reload();
+  await expect(page.locator('.how-pin')).toHaveAttribute('data-live', 'true');
+  await page.waitForTimeout(800);
+  expect(await page.evaluate(() => scrollY)).toBeGreaterThan(500);
+  expect(await page.evaluate(() => (window as unknown as { lowest: number }).lowest)).toBe(1);
+  await page.close();
+});
