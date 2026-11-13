@@ -4,6 +4,7 @@ import { DIAGRAM_KINDS, KIND_LABELS } from '@stackmap/core';
 import { EXAMPLES, exampleHref } from '../lib/catalog';
 import { diagnosticCodes } from '../lib/data/codes';
 import { DOC_PAGES, neighbours } from '../lib/docs-nav';
+import { searchIndex } from '../lib/search-index';
 import { ROUTES } from '../lib/seo';
 import { article } from '../lib/words';
 
@@ -55,3 +56,9 @@ describe('example pages', () => {
   });
 });
 
+describe('docs search index', () => {
+  it('lists no result twice', () => {
+    const rows = searchIndex().map((e) => `${e.title} · ${e.context} · ${e.href} · ${e.words}`);
+    expect(rows.filter((r, i) => rows.indexOf(r) !== i)).toEqual([]);
+  });
+});
