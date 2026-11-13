@@ -1,4 +1,4 @@
-import type { DiagramDraft } from '@stackmap/core';
+import { usesCompactCards, type DiagramDraft } from '@stackmap/core';
 import type { Diagnostic } from '../diagnostics';
 
 function duplicates(items: { id: string }[] | undefined, collection: string): Diagnostic[] {
@@ -141,7 +141,8 @@ export function semanticsDiagnostics(d: DiagramDraft): Diagnostic[] {
         subject: `/edges/${i}`,
         message: `Edge "${e.id}" connects "${e.from}" to itself`,
         evidence: { id: e.id, node: e.from },
-        allowedFixes: ['remove the edge', 'describe the loop in a card row instead'],
+        // Compact cards have no rows: that fix would trade this warning for an error.
+        allowedFixes: ['remove the edge', `describe the loop in ${usesCompactCards(d) ? 'an evidence note' : 'a card row'} instead`],
       });
   });
 
