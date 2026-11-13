@@ -309,3 +309,14 @@ test('a reload part-way down the landing never blanks what is already on screen'
   expect(await page.evaluate(() => (window as unknown as { lowest: number }).lowest)).toBe(1);
   await page.close();
 });
+
+test('pointing at an edge in a linked figure’s JSON lights its line', async ({ page }) => {
+  await page.goto('/docs');
+  const line = page.locator('.lf .cl[data-o^="edge:"]').first();
+  const id = (await line.getAttribute('data-o'))!.slice('edge:'.length);
+  const path = page.locator(`.lf path[data-edge-id="${id}"]`);
+  const before = await path.evaluate((p) => getComputedStyle(p).stroke);
+  await line.hover();
+  await expect(page.locator('.lf[data-linking]')).toHaveCount(1);
+  await expect.poll(() => path.evaluate((p) => getComputedStyle(p).stroke)).not.toBe(before);
+});

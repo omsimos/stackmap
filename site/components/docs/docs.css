@@ -984,8 +984,8 @@
 .lf [data-frame-id][data-lk] {
   border-color: var(--sm-text) !important;
 }
-.lf [data-edge-id][data-lk] path {
-  stroke: var(--sm-text);
+.lf path[data-edge-id][data-lk] {
+  stroke: var(--sm-text) !important;
 }
 @media (max-width: 1023px) {
   .lf.split {
