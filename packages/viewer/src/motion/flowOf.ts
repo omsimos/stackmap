@@ -5,8 +5,17 @@ import type { ExploreState } from '../explore/state';
 import { EDGE_RADIUS, type Scene } from '../canvas/scene';
 import { hopFlow, hopRanks, NO_FLOW, roundedPolyline, waveFlow, type Flow, type FlowEdge } from './flow';
 
+// Read from the scene alone, while a flow is rebuilt for every change of emphasis (a selection, a search keystroke).
+const built = new WeakMap<Scene, Map<string, FlowEdge>>();
+
 /** What a pulse needs from the scene: its drawn route, its tint, and what lights up when it lands. */
 function flowEdges(scene: Scene): Map<string, FlowEdge> {
+  let edges = built.get(scene);
+  if (!edges) built.set(scene, (edges = buildFlowEdges(scene)));
+  return edges;
+}
+
+function buildFlowEdges(scene: Scene): Map<string, FlowEdge> {
   const cards = new Map(scene.cards.map((c) => [c.node.id, c]));
   const radius = scene.compact ? COMPACT.radius : CARD.radius;
   return new Map(

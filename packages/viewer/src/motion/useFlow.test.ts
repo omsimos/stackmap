@@ -66,6 +66,13 @@ describe('which flow plays', () => {
   });
 });
 
+describe('what a flow costs', () => {
+  it('builds the edge geometry once per scene, not once per change of emphasis', () => {
+    const path = (s: Partial<ExploreState>) => flow(s).pulses.find((p) => p.id === 'bc')!.path;
+    expect(path({ selected: 'c' })).toBe(path({}));
+  });
+});
+
 describe('whether there is a flow to play', () => {
   const playable = (s: Partial<ExploreState>) => {
     const state = { ...INITIAL, ...s };
