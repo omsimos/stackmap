@@ -1,7 +1,7 @@
 import { Download } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { canEncode, download, exportFileName, exportPng, exportRaster, exportSvg, exportVideo, videoExtension, videoType } from './export';
-import { useFlow } from '../motion/useFlow';
+import { flowOf } from '../motion/flowOf';
 import { popIn } from '../motion/motion';
 import { PANEL_CLASS, PANEL_STYLE } from './ui';
 import { useExplore } from '../explore/ExploreContext';
@@ -10,11 +10,9 @@ import { useScene, useSceneContent } from '../canvas/ViewportContext';
 type Status = { kind: 'idle' } | { kind: 'busy'; text?: string } | { kind: 'done'; text: string } | { kind: 'error'; text: string };
 
 export function ExportMenu() {
-  const { draft, state } = useExplore();
+  const { draft, state, graph, emphasis } = useExplore();
   const content = useSceneContent();
   const scene = useScene();
-  // The video plays the same flow as the canvas: a route, a selection's connections, or everything shown.
-  const flow = useFlow(scene);
   // What this browser can write, checked once.
   const [formats] = useState(() => ({ jpeg: canEncode('image/jpeg'), webp: canEncode('image/webp'), video: videoType() }));
   const [open, setOpen] = useState(false);
@@ -109,6 +107,8 @@ export function ExportMenu() {
               run(async () => {
                 const css = getComputedStyle(document.documentElement);
                 const colorOf = (tint: string) => css.getPropertyValue(`--sm-${tint}-accent`).trim() || css.getPropertyValue('--sm-edge').trim();
+                // The video plays the same flow as the canvas: a route, a selection's connections, or everything shown.
+                const flow = flowOf(scene, graph, state, emphasis);
                 if (!flow.pulses.length) throw new Error('nothing to play: no connections are shown');
                 download(await exportVideo(content, flow, colorOf, formats.video!, state.speed), exportFileName(draft.title, videoExtension(formats.video!)));
                 return 'Saved video';

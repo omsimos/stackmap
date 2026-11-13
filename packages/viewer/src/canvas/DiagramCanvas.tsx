@@ -150,8 +150,9 @@ export function DiagramCanvas({
   // M toggles the radar from anywhere but a text field or menu; not while presenting (it's hidden then).
   const chromeRef = useRef(chrome);
   chromeRef.current = chrome;
-  const playableRef = useRef(false);
-  playableRef.current = state.playing || hasFlow(state, emphasis);
+  // Read when P is pressed: this renders on every pan and zoom frame, and hasFlow walks every edge.
+  const shown = useRef({ state, emphasis });
+  shown.current = { state, emphasis };
   // P plays or stops the flow, presenting too; with reduced motion, or nothing shown to play, it does nothing.
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
@@ -160,7 +161,7 @@ export function DiagramCanvas({
       const t = e.target as HTMLElement | null;
       if (e.metaKey || e.ctrlKey || e.altKey || e.repeat || inMenu(t) || (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))) return;
       if (key === 'm' && (!chromeRef.current || !withMinimap)) return;
-      if (key === 'p' && (!motionAllowed() || !playableRef.current)) return;
+      if (key === 'p' && (!motionAllowed() || !(shown.current.state.playing || hasFlow(shown.current.state, shown.current.emphasis)))) return;
       e.preventDefault();
       if (key === 'm') setMinimap((v) => !v);
       else dispatch({ type: 'togglePlay' });
@@ -168,8 +169,8 @@ export function DiagramCanvas({
     addEventListener('keydown', onKey);
     return () => removeEventListener('keydown', onKey);
   }, [dispatch, inScope, withMinimap]);
-  const flow = useFlow(scene);
   const playing = state.playing && motionAllowed();
+  const flow = useFlow(scene, playing);
   useSceneReveal(sceneRef, scene, viewport.restored);
 
   // Keys when the stage itself has focus (cards handle their own and stop propagation).
