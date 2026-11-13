@@ -172,6 +172,8 @@ export function DiagramCanvas({
 
   // Keys when the stage itself has focus (cards handle their own and stop propagation).
   const onKeyDown = (e: KeyboardEvent) => {
+    // ⌘/Ctrl with + - 0 is the browser's own zoom, Alt/⌘ with an arrow its history.
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
     const pan: Record<string, [number, number]> = {
       ArrowUp: [0, PAN_STEP],
       ArrowDown: [0, -PAN_STEP],
