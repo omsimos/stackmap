@@ -327,21 +327,22 @@ export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram
       const opts = graph.layoutOptions!;
       // A large diagram is past the unwrapped width anyway, and its flow order isn't needed (no flips): lay it out once.
       if (large && !stages) {
-        const wrapped = collect(draft, await elk.layout({ ...structuredClone(graph), layoutOptions: { ...opts, ...wrapOptions } }), direction, false, reversed);
-        return { laid: wrapped, flow: wrapped.nodes };
+        return { laid: collect(draft, await elk.layout({ ...structuredClone(graph), layoutOptions: { ...opts, ...wrapOptions } }), direction, false, reversed), flat: null };
       }
       const flat = await elk.layout(structuredClone(graph));
       // Wrapping would fold stages back onto each other.
       const wrap = (flat.width ?? 0) > MAX_UNWRAPPED_WIDTH && !stages;
       const result = wrap ? await elk.layout({ ...structuredClone(graph), layoutOptions: { ...opts, ...wrapOptions } }) : flat;
-      // Flow order is read before wrapping, which moves later layers back to the start of a new row.
-      return { laid: collect(draft, result, direction, stages !== null, reversed), flow: collect(draft, flat, direction, false, reversed).nodes };
+      // `flat` only when it isn't what was collected: the layout before wrapping.
+      return { laid: collect(draft, result, direction, stages !== null, reversed), flat: wrap ? flat : null };
     };
-    let { laid, flow } = await run();
+    const first = await run();
+    let laid = first.laid;
     // A group that both feeds and is fed by another can only sit on one side of it, so some edge between them runs
     // against the flow: entering its target from the far side, it wraps round the diagram. Lay such an edge out
     // from its target (it then leaves and enters by the facing sides) and redo the layout once.
-    const flips = large ? [] : againstFlow(draft, flow, direction, reversed);
+    // Flow order is read before wrapping, which moves later layers back to the start of a new row.
+    const flips = large ? [] : againstFlow(draft, first.flat ? collect(draft, first.flat, direction, false, reversed).nodes : laid.nodes, direction, reversed);
     if (flips.length) {
       reversed = new Set(reversed);
       for (const id of flips) reversed.has(id) ? reversed.delete(id) : reversed.add(id);
@@ -358,12 +359,14 @@ export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram
     if (spots.misfit > 0 && !large) {
       const cap = compact ? COMPACT_GAP.max : FULL_GAP_MAX;
       const defaultRun = Number(root.layoutOptions![EDGE_RUN]);
-      const gap = Math.min(cap, Math.max(Number(root.layoutOptions![LAYER_GAP]), spots.misfit + (compact ? 24 : 48)));
+      const current = Number(root.layoutOptions![LAYER_GAP]);
+      const gap = Math.min(cap, Math.max(current, spots.misfit + (compact ? 24 : 48)));
       const longRun = Math.min(direction === 'RIGHT' ? spots.misfit + 16 : 40, Math.floor((cap - 24) / 2));
       const tries = [
         { gap, run: defaultRun },
         { gap: Math.max(gap, 2 * longRun + 24), run: longRun },
-      ];
+        // Room the first layout already had (groups aside: they take the gap only on a retry) gives that layout again.
+      ].filter((room) => draft.groups?.length || room.gap !== current || room.run !== defaultRun);
       const worse = (a: typeof spots, b: typeof spots) => a.forced - b.forced || a.unseated - b.unseated || a.misfit - b.misfit;
       for (const room of tries) {
         const wider = (await run(room)).laid;
