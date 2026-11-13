@@ -60,10 +60,12 @@ export interface LabelFrame {
   rect: Rect;
   /** height of the title band along the frame's top */
   band: number;
+  /** the title's width from the frame's left edge, when it is longer than the usual strip */
+  title?: number;
 }
 /** Where along its route a label should sit: by the target on a fan-out, by the source on a fan-in. */
 type Bias = 'start' | 'mid' | 'end';
-// The frame title's box: the viewer's title is short, so a fixed strip from the corner covers it.
+// The frame title's box: most titles are short, so a strip from the corner covers them; a longer one says so.
 const TITLE = { width: 160, height: 28 };
 
 /** Frame borders as closed polylines, and the strips their titles take. */
@@ -76,7 +78,7 @@ function frameObstacles(frames: LabelFrame[]): { lines: Point[][]; titles: Rect[
       { x: r.x, y: r.y + r.height },
       { x: r.x, y: r.y },
     ]),
-    titles: frames.map(({ rect: r, band }) => ({ x: r.x, y: r.y, width: Math.min(r.width, TITLE.width), height: Math.max(band, TITLE.height) })),
+    titles: frames.map(({ rect: r, band, title = 0 }) => ({ x: r.x, y: r.y, width: Math.min(r.width, Math.max(title, TITLE.width)), height: Math.max(band, TITLE.height) })),
   };
 }
 
