@@ -16,8 +16,14 @@ const ICONS: Record<EntryKind, typeof FileText> = {
 };
 
 let cached: Promise<SearchEntry[]> | undefined;
-// Fetched once, on the first open: every docs page shares the one file.
-const loadIndex = () => (cached ??= fetch('/search.json').then((r) => (r.ok ? r.json() : Promise.reject(new Error(`search index: ${r.status}`)))));
+// Fetched once, on the first open: every docs page shares the one file. A failed fetch is not kept, so the next open tries again.
+const loadIndex = () =>
+  (cached ??= fetch('/search.json')
+    .then((r): Promise<SearchEntry[]> => (r.ok ? r.json() : Promise.reject(new Error(`search index: ${r.status}`))))
+    .catch((e: unknown) => {
+      cached = undefined;
+      throw e;
+    }));
 
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 

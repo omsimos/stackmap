@@ -320,3 +320,22 @@ test('pointing at an edge in a linked figure’s JSON lights its line', async ({
   await expect(page.locator('.lf[data-linking]')).toHaveCount(1);
   await expect.poll(() => path.evaluate((p) => getComputedStyle(p).stroke)).not.toBe(before);
 });
+
+test('the docs search loads its index again after a failed fetch', async ({ page }) => {
+  let fail = true;
+  await page.route('**/search.json', (r) => (fail ? r.abort() : r.continue()));
+  await page.goto('/docs');
+  const box = page.getByRole('combobox', { name: 'Search the docs' });
+  await expect(async () => {
+    await page.keyboard.press('ControlOrMeta+k');
+    await expect(box).toBeFocused({ timeout: 500 });
+  }).toPass();
+  await box.fill('serve');
+  await expect(page.getByRole('option')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(box).toHaveCount(0);
+  fail = false;
+  await page.keyboard.press('ControlOrMeta+k');
+  await box.fill('serve');
+  await expect(page.getByRole('option').first()).toBeVisible();
+});
