@@ -144,6 +144,17 @@ describe('layoutSequence', () => {
     expect(loop.at(-1)!.y).toBeGreaterThan(loop[0]!.y);
   });
 
+  it('ends a message on the face of the bars it meets, on either side of nested ones', () => {
+    // b→c, c→b (a callback: nests on b), then b→a and a→b on b's left (async: neither opens a bar).
+    const out = layoutSequence(seq([m('0', 'a', 'b'), m('1', 'b', 'c'), m('2', 'c', 'b'), m('3', 'b', 'a', { kind: 'async' }), m('4', 'a', 'b', { kind: 'async' })]));
+    const bars = out.sequence!.activations.filter((x) => x.participant === 'b').map((x) => x.rect);
+    expect(bars).toHaveLength(2);
+    const [left, right] = [Math.min(...bars.map((r) => r.x)), Math.max(...bars.map((r) => r.x + r.width))];
+    expect(out.edges['2']!.at(-1)!.x).toBe(right);
+    expect(out.edges['3']![0]!.x).toBe(left);
+    expect(out.edges['4']!.at(-1)!.x).toBe(left);
+  });
+
   it('lays out a sequence with no messages', () => {
     const out = layoutSequence(seq([]));
     expect(Object.keys(out.nodes)).toEqual(['a', 'b', 'c']);

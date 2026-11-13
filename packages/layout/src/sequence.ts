@@ -188,10 +188,11 @@ export function layoutSequence(draft: DiagramDraft): LaidOutDiagram {
     const y1 = Math.max(b.self ? y0 : rowY[b.to]! + 6, y0 + (b.self ? 18 : MIN_BAR));
     return { x: round(x), y: round(y0), width: ACTIVATION.width, height: round(y1 - y0) };
   };
-  // A message leaves and arrives at the edge of the innermost bar open on its row.
-  const reach = (participant: string, row: number) => {
-    const open = bars.filter((b) => !b.self && b.participant === participant && b.from <= row && b.to >= row);
-    return open.length ? ACTIVATION.width / 2 + Math.max(...open.map((b) => b.depth)) * ACTIVATION.nest : 0;
+  // A message leaves and arrives at the face of the bars open on its row: nested bars step right, so the right
+  // face is the innermost bar's and the left face the outermost's. `side` is 1 for the right, -1 for the left.
+  const reach = (participant: string, row: number, side: number) => {
+    const depths = bars.filter((b) => !b.self && b.participant === participant && b.from <= row && b.to >= row).map((b) => b.depth);
+    return depths.length ? (side * ACTIVATION.width) / 2 + (side > 0 ? Math.max(...depths) : Math.min(...depths)) * ACTIVATION.nest : 0;
   };
 
   const out: Record<string, Point[]> = {};
@@ -200,7 +201,7 @@ export function layoutSequence(draft: DiagramDraft): LaidOutDiagram {
     const y = rowY[i]!;
     const x = xOf(e.from);
     if (e.from === e.to) {
-      const x0 = x + reach(e.from, i);
+      const x0 = x + reach(e.from, i, 1);
       const bar = bars.find((b) => b.self === e.id)!;
       out[e.id] = [
         { x: round(x0), y: round(y) },
@@ -213,8 +214,8 @@ export function layoutSequence(draft: DiagramDraft): LaidOutDiagram {
     }
     const tx = xOf(e.to);
     const dir = tx > x ? 1 : -1;
-    const a = x + dir * reach(e.from, i);
-    const b = tx - dir * reach(e.to, i);
+    const a = x + reach(e.from, i, dir);
+    const b = tx + reach(e.to, i, -dir);
     out[e.id] = [
       { x: round(a), y: round(y) },
       { x: round(b), y: round(y) },
