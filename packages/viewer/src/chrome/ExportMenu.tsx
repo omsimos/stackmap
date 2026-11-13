@@ -152,6 +152,8 @@ export function ExportMenu() {
           onBlur={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false);
           }}
+          // Safari doesn't focus a button on click, so a press would blur the focused item to nothing and close the menu.
+          onMouseDown={(e) => e.preventDefault()}
           className={`${PANEL_CLASS} absolute top-full right-0 z-20 mt-2 w-[200px] p-1.5`}
           style={PANEL_STYLE}
           onKeyDown={(e) => {
