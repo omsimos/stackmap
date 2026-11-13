@@ -352,3 +352,13 @@ test('the hero viewer starts its flow only once it is on screen', async ({ brows
   await expect(play).toHaveAttribute('aria-pressed', 'true');
   await page.close();
 });
+
+test('the gallery’s filter follows the address when the nav link drops ?kind=', async ({ page }) => {
+  await page.goto('/examples?kind=workflow');
+  const kinds = page.getByRole('group', { name: 'Filter by kind' });
+  await expect(kinds.getByRole('button', { name: /Workflow/ })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('navigation', { name: 'Site', exact: true }).getByRole('link', { name: 'Examples' }).click();
+  await expect(page).toHaveURL(/\/examples$/);
+  await expect(kinds.getByRole('button', { name: /^All/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.ex-li:visible')).toHaveCount(16);
+});

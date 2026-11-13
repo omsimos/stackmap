@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowRight, Bot } from 'lucide-react';
 import { DIAGRAM_KINDS, KIND_LABELS, type DiagramKind } from '@stackmap/core';
 
@@ -14,6 +15,14 @@ export interface GridItem {
 
 type Kind = DiagramKind | 'all';
 
+// On a static page useSearchParams needs a Suspense boundary, and whatever is inside one renders in the browser
+// only: this reads the address on its own so the cards stay server markup.
+function KindParam({ onKind }: { onKind: (k: Kind) => void }) {
+  const k = useSearchParams().get('kind');
+  useEffect(() => onKind(k && (DIAGRAM_KINDS as readonly string[]).includes(k) ? (k as DiagramKind) : 'all'), [k, onKind]);
+  return null;
+}
+
 /**
  * The gallery's kind filter, agent toggle and cards. The cards are server markup; this only hides the ones that
  * don't match. `?kind=` picks the kind, so the docs can link straight to theirs.
@@ -23,11 +32,6 @@ export function ExampleGrid({ items, ledes }: { items: GridItem[]; ledes: Record
   const [agent, setAgent] = useState(false);
   const bar = useRef<HTMLDivElement>(null);
   const ind = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    const k = new URLSearchParams(location.search).get('kind');
-    if (k && (DIAGRAM_KINDS as readonly string[]).includes(k)) setKind(k as DiagramKind);
-  }, []);
 
   const pick = (k: Kind) => {
     setKind(k);
@@ -60,6 +64,9 @@ export function ExampleGrid({ items, ledes }: { items: GridItem[]; ledes: Record
 
   return (
     <>
+      <Suspense fallback={null}>
+        <KindParam onKind={setKind} />
+      </Suspense>
       <div className="g-bar">
         <div ref={bar} className="g-kinds pnl" role="group" aria-label="Filter by kind">
           <i ref={ind} className="g-ind" aria-hidden="true" />
