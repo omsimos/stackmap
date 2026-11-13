@@ -62,13 +62,33 @@ describe('routeBetween', () => {
   // a → b → c → y, x → b, c → a (a cycle), plus a detour b → d → y
   const r = buildGraph(['a', 'b', 'c', 'd', 'x', 'y', 'lone'], [...edges, { id: 'bd', from: 'b', to: 'd' }, { id: 'dy', from: 'd', to: 'y' }]);
 
-  it('collects every node and edge on a directed walk (loops included), and one shortest path', () => {
+  it('collects every node and edge on a directed walk, and one shortest path', () => {
     const route = routeBetween(r, 'b', 'y')!;
     expect(route.reversed).toBe(false);
-    // a is on the loop b → c → a → b, so a walk from b to y can pass it; the edge back into b isn't lit.
-    expect([...route.nodes].sort()).toEqual(['a', 'b', 'c', 'd', 'y']);
-    expect([...route.edges].sort()).toEqual(['bc', 'bd', 'ca', 'cy', 'dy']);
+    // a is only on the loop b → c → a → b: it leads nowhere but back to the start, so it isn't on the way to y.
+    expect([...route.nodes].sort()).toEqual(['b', 'c', 'd', 'y']);
+    expect([...route.edges].sort()).toEqual(['bc', 'bd', 'cy', 'dy']);
     expect(route.steps).toHaveLength(2);
+  });
+
+  it('leaves out what only a loop back through an end reaches, and keeps loops along the way', () => {
+    // draft → review, with a retry loop review → changes → draft.
+    const retry = buildGraph(['draft', 'review', 'changes'], [
+      { id: 'submit', from: 'draft', to: 'review' },
+      { id: 'reject', from: 'review', to: 'changes' },
+      { id: 'redo', from: 'changes', to: 'draft' },
+    ]);
+    const route = routeBetween(retry, 'draft', 'review')!;
+    expect([...route.nodes].sort()).toEqual(['draft', 'review']);
+    expect([...route.edges]).toEqual(['submit']);
+    // a → m → b with m ⇄ n: the loop at m is on a walk from a to b.
+    const detour = buildGraph(['a', 'm', 'n', 'b'], [
+      { id: 'am', from: 'a', to: 'm' },
+      { id: 'mn', from: 'm', to: 'n' },
+      { id: 'nm', from: 'n', to: 'm' },
+      { id: 'mb', from: 'm', to: 'b' },
+    ]);
+    expect([...routeBetween(detour, 'a', 'b')!.edges].sort()).toEqual(['am', 'mb', 'mn', 'nm']);
   });
 
   it('runs the other way when only that direction has a path', () => {
