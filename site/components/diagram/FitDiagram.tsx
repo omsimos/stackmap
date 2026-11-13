@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import type { StaticDiagram } from '@/lib/data/static-html';
+import { useFit } from './useFit';
 
 const GRID = 20;
 
@@ -26,19 +26,7 @@ export function FitDiagram({
   fill?: boolean;
   className?: string;
 }) {
-  const { box: content } = still;
-  const fit = useCallback((w: number, h: number) => Math.min(1, (w - 2 * pad) / content.width, (h - 2 * pad) / content.height), [content, pad]);
-  const box = useRef<HTMLDivElement>(null);
-  const [k, setK] = useState(() => fit(width, height));
-  useLayoutEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    const measure = () => setK(fit(el.clientWidth, el.clientHeight));
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [fit]);
+  const [box, k] = useFit(still.box, { width, height }, pad);
   return (
     <div
       ref={box}
