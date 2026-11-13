@@ -376,3 +376,20 @@ test('on a phone the docs sheet marks the section in view', async ({ browser }) 
   await expect(bar).toHaveCSS('opacity', '1');
   await page.close();
 });
+
+test('the try bar stops describing Play once the flow stops or another mode starts', async ({ browser }) => {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'no-preference' });
+  await page.goto('/');
+  const play = page.getByRole('group', { name: 'Try the viewer' }).getByRole('button', { name: /Play/ });
+  const says = page.locator('.try-d');
+  // The flow starts by itself after the intro; the reader stops it.
+  await expect(play).toHaveAttribute('aria-pressed', 'true');
+  await play.click();
+  await expect(play).toHaveAttribute('aria-pressed', 'false');
+  await expect(says).toHaveText(/This is the real viewer/);
+  await play.click();
+  await expect(says).toHaveText(/Pulses travel/);
+  await page.locator('.ev .sm-card[data-card-id="orders"]').click();
+  await expect(says).toHaveText(/Select a card/);
+  await page.close();
+});
