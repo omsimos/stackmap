@@ -5,7 +5,7 @@ import { Worker as Thread } from 'node:worker_threads';
 import ElkApi from 'elkjs/lib/elk-api.js';
 import ElkBundled from 'elkjs/lib/elk.bundled.js';
 import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api';
-import { cardSize, isLaneKind, usesCompactCards, type DiagramDraft, type Direction, type LaidOutDiagram, type Point, type Rect } from '@stackmap/core';
+import { cardSize, isLaneKind, round, usesCompactCards, type DiagramDraft, type Direction, type LaidOutDiagram, type Point, type Rect } from '@stackmap/core';
 import { runChild, threadPort } from './elk-io';
 import { placeLabels } from './labels';
 import { layoutLanes } from './lanes';
@@ -209,7 +209,6 @@ function portKey(e: DiagramDraft['edges'][number], node: string, role: 'out' | '
   return `${node}:${role}:${flipped ? 'flipped' : 'flow'}:${e.tone ?? ''}:${e.kind ?? 'sync'}`;
 }
 
-const round = (n: number) => Math.round(n * 100) / 100;
 
 export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram> {
   if (isLaneKind(draft.kind)) return layoutLanes(draft);

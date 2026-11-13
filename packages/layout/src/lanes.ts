@@ -1,4 +1,4 @@
-import { assignColumns, backEdges, cardSize, COMPACT, type DiagramDraft, type DiagramEdge, type LaidOutDiagram, type Point, type Rect } from '@stackmap/core';
+import { assignColumns, backEdges, cardSize, COMPACT, round, type DiagramDraft, type DiagramEdge, type LaidOutDiagram, type Point, type Rect } from '@stackmap/core';
 import { labelWidth, placeLabels } from './labels';
 
 export { assignColumns, backEdges } from '@stackmap/core';
@@ -28,8 +28,6 @@ export const GROUP_LABEL = 28;
 /** Room left of a lifecycle start state for its initial marker. */
 export const START_MARK = 28;
 
-
-const round = (n: number) => Math.round(n * 100) / 100;
 const roundRect = (r: Rect): Rect => ({ x: round(r.x), y: round(r.y), width: round(r.width), height: round(r.height) });
 
 function portChoices(sameLane: boolean, dCol: number, dLane: number, isBack: boolean): { sources: PortChoice[]; targets: PortChoice[] } {

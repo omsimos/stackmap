@@ -1,6 +1,7 @@
 import type { Point } from './types';
 
-const round = (n: number) => Math.round(n * 100) / 100;
+/** Coordinates to two decimals: every layout rounds alike, so points on one line compare equal. */
+export const round = (n: number) => Math.round(n * 100) / 100;
 const dist = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y);
 const towards = (from: Point, to: Point, d: number): Point => {
   const len = dist(from, to);
