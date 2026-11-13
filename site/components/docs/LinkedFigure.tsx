@@ -31,12 +31,17 @@ export function LinkedFigure({ still, url, code, split = true }: { still: Static
   const onStage = (e: PointerEvent) => {
     const el = root.current;
     if (!el) return;
-    // Cards first, then the frames they sit in.
+    // Cards first, then the frames they sit in: of nested frames the innermost, which is the smallest under the pointer.
     for (const [kind, attr] of [['node', ATTR.node], ['group', ATTR.group]] as const) {
+      let hit: string | null = null;
+      let area = Infinity;
       for (const x of el.querySelectorAll<HTMLElement>(`.lf-stage [${attr}]`)) {
         const r = x.getBoundingClientRect();
-        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) return light(`${kind}:${x.getAttribute(attr)}`);
+        if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom || r.width * r.height >= area) continue;
+        hit = x.getAttribute(attr);
+        area = r.width * r.height;
       }
+      if (hit !== null) return light(`${kind}:${hit}`);
     }
     light(null);
   };
