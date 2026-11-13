@@ -6,30 +6,6 @@ export function GitHubIcon({ size = 17 }: { size?: number }) {
   );
 }
 
-export function ExternalIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="text-fg-muted">
-      <path d="M7 17 17 7M8 7h9v9" />
-    </svg>
-  );
-}
-
-export function ArrowIcon({ back = false }: { back?: boolean }) {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d={back ? 'm15 18-6-6 6-6' : 'm9 18 6-6-6-6'} />
-    </svg>
-  );
-}
-
-export function MenuIcon({ open }: { open: boolean }) {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d={open ? 'M18 6 6 18M6 6l12 12' : 'M4 7h16M4 12h16M4 17h16'} />
-    </svg>
-  );
-}
-
 export function NpmIcon({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

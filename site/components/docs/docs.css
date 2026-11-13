@@ -341,28 +341,6 @@
 .ask .cp {
   flex-shrink: 0;
 }
-.note {
-  display: flex;
-  gap: 12px;
-  max-width: 680px;
-  margin-top: 24px;
-  padding: 14px 18px;
-  border-radius: 14px;
-  background: var(--sm-panel);
-  box-shadow: inset 0 0 0 1px var(--sm-panel-border);
-  font-size: 14.5px;
-  line-height: 1.6;
-  color: var(--sm-text-muted);
-}
-.note .ic {
-  flex-shrink: 0;
-  margin-top: 3px;
-  color: var(--sm-text);
-}
-.note b {
-  color: var(--sm-text);
-  font-weight: 500;
-}
 .d-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -923,16 +901,6 @@
   position: relative;
   background-color: var(--sm-stage);
   overflow: hidden;
-}
-.fig-in {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%) scale(var(--fk, 1));
-  transform-origin: center;
-}
-.fig-in .dg {
-  position: relative;
 }
 .lf-code {
   min-width: 0;
