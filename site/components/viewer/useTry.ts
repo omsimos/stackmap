@@ -15,11 +15,12 @@ export interface Showcase {
 
 /**
  * Buttons that each put the real viewer in one state: the modes are exclusive, and Play runs over any of them.
- * `shown` is the mode to describe: the one on, or the one last pressed.
+ * `shown` is the mode to describe: Play from its press until it stops or the mode under it changes, else the one on.
  */
 export function useTry(show: Showcase) {
   const { state, dispatch } = useExplore();
-  const [said, setSaid] = useState<Try | null>(null);
+  // The mode that was on when Play was last pressed; undefined once another button is.
+  const [playedOver, setPlayedOver] = useState<Try | null>();
   const active: Try | null = state.route || state.routing ? 'route' : state.query !== null ? 'find' : state.selected && state.trace ? 'trace' : state.selected ? 'select' : state.view ? 'views' : null;
   const on = (id: Try) => (id === 'play' ? state.playing : active === id);
   const reset = () => {
@@ -28,7 +29,7 @@ export function useTry(show: Showcase) {
     if (state.view) dispatch({ type: 'view', id: null });
   };
   const go = (id: Try) => {
-    setSaid(id);
+    setPlayedOver(id === 'play' ? active : undefined);
     if (id === 'play') return dispatch({ type: 'togglePlay' });
     const wasOn = on(id);
     reset();
@@ -43,6 +44,6 @@ export function useTry(show: Showcase) {
     } else if (id === 'find') dispatch({ type: 'search', query: show.query });
     else dispatch({ type: 'view', id: show.view });
   };
-  const shown = said === 'play' ? 'play' : (active ?? (said && on(said) ? said : null));
+  const shown = state.playing && playedOver === active ? 'play' : active;
   return { on, go, shown, state };
 }
