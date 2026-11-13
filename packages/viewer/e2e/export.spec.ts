@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { expect, test } from '@playwright/test';
+import { existsSync, readFileSync } from 'node:fs';
+import { expect, test, webkit } from '@playwright/test';
 import { commerceApiLayout } from '../src/samples/commerce-api.layout';
 
 // PNG IHDR: width and height are big-endian u32 at bytes 16..24.
@@ -127,6 +127,20 @@ test('the export menu is keyboard operable and closes on Escape', async ({ page 
   await page.keyboard.press('Escape');
   await expect(page.getByRole('menu')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Export' })).toBeFocused();
+});
+
+// Safari doesn't focus a button on click: pressing an item blurred the focused one, and that blur closed the menu.
+test('the export menu takes a mouse click in WebKit', async ({ baseURL }) => {
+  test.skip(!existsSync(webkit.executablePath()), 'WebKit is not installed');
+  const browser = await webkit.launch();
+  try {
+    const page = await browser.newPage({ baseURL });
+    await page.goto('/?page=sample');
+    await expect(page.locator('.sm-card')).toHaveCount(6);
+    expect((await exportAs(page, /^SVG/)).name).toBe('commerce-api.svg');
+  } finally {
+    await browser.close();
+  }
 });
 
 test('edge routes that swing outside the cards are inside the export', async ({ page }) => {
