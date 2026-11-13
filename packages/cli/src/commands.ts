@@ -45,7 +45,8 @@ export const failure = (e: unknown): CommandResult => ({
 
 const real = (p: string) => {
   try {
-    return realpathSync(p);
+    // .native also resolves the name to its case on disk: on macOS and Windows `D.JSON` can be `d.json`.
+    return realpathSync.native(p);
   } catch {
     return resolve(p);
   }

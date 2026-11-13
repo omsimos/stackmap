@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -157,6 +157,16 @@ describe('deliver', () => {
       expect(r.code).toBe(2);
       expect(r.stderr).toMatch(/^stackmap: refusing to overwrite the input/);
     }
+    expect(JSON.parse(readFileSync(json, 'utf8'))).toEqual(commerceApi);
+  });
+
+  it('refuses an output that names its input in another case, where the filesystem ignores case', async () => {
+    const json = file('case.json', commerceApi);
+    const upper = join(dir, 'CASE.JSON');
+    if (!existsSync(upper)) return; // a case-sensitive filesystem: that is a different file
+    const r = await deliverCommand(json, { template: TEMPLATE, out: upper });
+    expect(r.code).toBe(2);
+    expect(r.stderr).toMatch(/^stackmap: refusing to overwrite the input/);
     expect(JSON.parse(readFileSync(json, 'utf8'))).toEqual(commerceApi);
   });
 
