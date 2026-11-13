@@ -362,3 +362,17 @@ test('the gallery’s filter follows the address when the nav link drops ?kind='
   await expect(kinds.getByRole('button', { name: /^All/ })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.ex-li:visible')).toHaveCount(16);
 });
+
+test('on a phone the docs sheet marks the section in view', async ({ browser }) => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+  await page.goto('/docs');
+  const open = page.locator('.d-bar-m');
+  await expect(async () => {
+    await open.click();
+    await expect(open).toHaveAttribute('aria-expanded', 'true', { timeout: 500 });
+  }).toPass();
+  const bar = page.locator('#docs-sheet .d-sub-ind');
+  await expect.poll(() => bar.evaluate((el) => el.getBoundingClientRect().height)).toBeGreaterThan(10);
+  await expect(bar).toHaveCSS('opacity', '1');
+  await page.close();
+});
