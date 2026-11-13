@@ -87,11 +87,17 @@ export function searchIndex(): SearchEntry[] {
   push({ title: `Exit codes ${EXIT_CODES.map((c) => c.code).join(', ').replace(/, (\d+)$/, ' and $1')}`, context: 'The CLI · Exit codes', href: '/docs/cli#exit', kind: 'command', words: 'exit status error' });
   for (const k of VIEWER_KEYS) push({ title: `${k.keys.join('  ')}  ${k.does}`, context: 'The viewer · Keyboard', href: '/docs/viewer#keys', kind: 'key', words: 'shortcut key keyboard' });
   for (const code of Object.values(SITE.codes).flat()) push({ title: code, context: 'The CLI · Diagnostic codes', href: '/docs/cli#codes', kind: 'code', words: 'diagnostic error warning' });
+  // The folded card parts share one anchor, so a field two of them define alike (a footer's left and right `icon`)
+  // would be the same result twice.
+  const fields = new Set<string>();
   for (const section of schema as SchemaSection[]) {
     const place = PLACEMENTS[section.name];
     if (!place) continue;
     for (const f of section.fields) {
-      push({ title: f.key, context: `Schema · ${place.title}`, href: `/docs/schema#${place.anchor}`, kind: 'field', words: `${f.key} ${f.type} ${f.notes}` });
+      const words = `${f.key} ${f.type} ${f.notes}`;
+      if (fields.has(`${place.anchor} ${words}`)) continue;
+      fields.add(`${place.anchor} ${words}`);
+      push({ title: f.key, context: `Schema · ${place.title}`, href: `/docs/schema#${place.anchor}`, kind: 'field', words });
     }
   }
   return out;
