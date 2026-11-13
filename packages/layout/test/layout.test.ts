@@ -202,6 +202,15 @@ describe('layoutDiagram', () => {
     }
   });
 
+  it('draws a group with nothing in it as a frame that holds its title', async () => {
+    const out = await layoutDiagram(draft({ groups: [{ id: 'g', label: 'Empty' }, { id: 'h', label: 'Full' }], nodes: [node('a', { group: 'h' }), node('b')] }));
+    const g = out.groups.g!;
+    expect(g.width).toBeGreaterThan(60);
+    expect(g.height).toBeGreaterThanOrEqual(GROUP_LABEL_BAND);
+    const overlap = (a: Rect, b: Rect) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+    for (const r of [out.groups.h!, out.nodes.b!]) expect(overlap(g, r)).toBe(false);
+  });
+
   it('top-aligns the cards of a row, whatever their heights', async () => {
     // In the hub, feed (a reply's target) and finisher are shorter than their row-mates and used to be centred on them.
     const out = await layoutDiagram(STRESS['hub-down']!);
