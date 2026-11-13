@@ -180,7 +180,8 @@ export function useZoom(stageRef: RefObject<HTMLDivElement | null>, content: Rec
           .transition()
           .duration(duration())
           .call(z.transform, toZoom(next))
-          .on('end', () => {
+          // Cut short by another move (a zoom, a fit) it is no longer where the camera is heading.
+          .on('end interrupt cancel', () => {
             if (pending.current === next) pending.current = null;
           });
       }),
