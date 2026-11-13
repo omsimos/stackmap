@@ -11,7 +11,8 @@ export function Reveals() {
   useEffect(() => {
     const mm = gsap.matchMedia();
     mm.add('(prefers-reduced-motion: no-preference)', () => {
-      const els = gsap.utils.toArray<HTMLElement>('[data-reveal]');
+      // Only what is still below the fold: hiding what the server already painted on screen would blank it.
+      const els = gsap.utils.toArray<HTMLElement>('[data-reveal]').filter((el) => el.getBoundingClientRect().top > innerHeight * 0.92);
       gsap.set(els, { autoAlpha: 0, y: 12 });
       ScrollTrigger.batch(els, {
         start: 'top 92%',

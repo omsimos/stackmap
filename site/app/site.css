@@ -286,7 +286,7 @@ body {
   }
 }
 
-/* Reveals: [data-reveal] is hidden only once GSAP has taken it (lib/reveal.ts); the server markup is the resting frame. */
+/* Reveals: [data-reveal] is hidden only once GSAP has taken it (components/landing/Reveals.tsx); the server markup is the resting frame. */
 
 /* Nav */
 .nav {
