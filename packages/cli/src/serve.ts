@@ -102,7 +102,7 @@ export async function serve(path: string, { template, port = 4400, log = () => {
   let built = false;
   const rebuild = async () => {
     try {
-      const result = await buildHtml(path, template);
+      const result = await buildHtml(path, template, log);
       publish({ ok: result.ok, diagnostics: result.diagnostics }, result.html);
     } catch (e) {
       const unreadable = e instanceof CliError;

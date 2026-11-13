@@ -185,6 +185,15 @@ describe('serve', () => {
     await expect.poll(async () => titleOf(await page(server!.url)), { timeout: 8000 }).toBe('Edited early · stackmap');
   });
 
+  it('says a large layout is under way before it finishes', async () => {
+    const nodes = Array.from({ length: 61 }, (_, i) => ({ id: `n${i}`, type: 'service', card: { title: `n${i}` } }));
+    const edges = nodes.slice(1).map((n, i) => ({ id: `e${i}`, from: `n${i}`, to: n.id }));
+    write({ kind: 'architecture', title: 'Big', nodes, edges });
+    const lines: string[] = [];
+    server = await serve(file, { template: TEMPLATE, port: 0, log: (l) => lines.push(l) });
+    expect(lines).toEqual(['laying out 61 nodes and 60 connections; a diagram this size can take a while', '✓ d.json ready']);
+  });
+
   it('starts on an invalid file with the bare live template', async () => {
     write({ kind: 'architecture' });
     server = await serve(file, { template: TEMPLATE, port: 0 });
