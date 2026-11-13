@@ -29,7 +29,7 @@ const keysAt = (path: readonly PropertyKey[]) => Object.keys(schemaAt(path)?.pro
  */
 function childAccepting(path: readonly PropertyKey[], key: string): string | undefined {
   const props = schemaAt(path)?.properties ?? {};
-  return Object.keys(props).find((k) => props[k]!.type === 'object' && key in (props[k]!.properties ?? {}));
+  return Object.keys(props).find((k) => props[k]!.type === 'object' && Object.hasOwn(props[k]!.properties ?? {}, key));
 }
 
 /** Whether the object enclosing `path` accepts `key` (card `evidence` belongs on the node). */
@@ -39,7 +39,7 @@ function parentAccepts(path: readonly PropertyKey[], key: string): boolean {
   const up = path.slice(0, -1);
   const parent = schemaAt(up);
   const obj = parent?.properties ? parent : schemaAt(up.slice(0, -1));
-  return key in (obj?.properties ?? {});
+  return Object.hasOwn(obj?.properties ?? {}, key);
 }
 
 // Names authors reach for that mean an existing field.
@@ -86,7 +86,8 @@ function fixes(issue: z.core.$ZodIssue, received: unknown): string[] {
     case 'unrecognized_keys': {
       const allowed = keysAt(issue.path);
       return issue.keys.flatMap((k) => {
-        const alias = ALIASES[k];
+        // Own keys only: an agent's stray `constructor` or `toString` is on every object's prototype.
+        const alias = Object.hasOwn(ALIASES, k) ? ALIASES[k] : undefined;
         if (alias && allowed.includes(alias)) return [`rename "${k}" to "${alias}"`];
         // A node's `label` means its card title, not the similarly spelt `lane`.
         const aliasHome = alias && childAccepting(issue.path, alias);

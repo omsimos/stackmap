@@ -129,6 +129,13 @@ describe('validateDiagram', () => {
       expect(diags(withLine(0))[0]).toMatchObject({ code: 'schema/too_small', subject: '/nodes/0/evidence/0/line', allowedFixes: ['make "line" greater than 0'] });
     });
 
+    it('an unknown key named like an Object.prototype member is just removed', () => {
+      for (const key of ['constructor', 'toString', 'hasOwnProperty']) {
+        const [d] = diags(base({ nodes: [node('a', { [key]: 1 } as never), node('b')] }));
+        expect(d).toMatchObject({ code: 'schema/unrecognized_keys', subject: '/nodes/0', allowedFixes: [expect.stringMatching(new RegExp(`^remove "${key}" \\(not valid here`))] });
+      }
+    });
+
     it('limits say how far to cut', () => {
       const stats = Array.from({ length: 4 }, (_, i) => ({ value: String(i), label: 'x' }));
       expect(diags(base({ nodes: [node('a', { card: { title: 'a', stats } })] }))[0]).toMatchObject({
