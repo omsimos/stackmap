@@ -1,4 +1,5 @@
 // The schema page's prose and samples, by section anchor. The fields themselves come from the generated schema.
+import { REPO, schemaUrl } from './package';
 
 export interface SchemaSample {
   /** where the sample sits in a diagram: the label over it */
@@ -68,7 +69,7 @@ export const SAMPLES: Record<string, SchemaSample> = {
       { file: 'services/api/src/db.ts', line: 8 },
     ],
   },
-  source: { file: 'source', place: 'source', value: { url: 'https://github.com/omsimos/stackmap/blob/a2111f0590892de04f16c2d2f11ad877a502d89b' } },
+  source: { file: 'source', place: 'source', value: { url: `${REPO}/blob/a2111f0590892de04f16c2d2f11ad877a502d89b` } },
   edges: {
     file: 'edges',
     place: 'array',
@@ -127,5 +128,5 @@ export function diagramOutline(version: string, draft: object): string {
   const d = draft as Record<string, unknown>;
   const keys = ['kind', 'title', 'subtitle', 'direction'].filter((k) => d[k] !== undefined).map((k) => `  "${k}": ${JSON.stringify(d[k])}`);
   const arrays = ['groups', 'lanes', 'phases', 'nodes', 'edges', 'views', 'notes'].flatMap((k) => (Array.isArray(d[k]) && d[k].length ? [`  "${k}": [ … ${d[k].length} ]`] : []));
-  return ['{', [`  "$schema": "https://unpkg.com/@omsimos/stackmap@${version}/dist/stackmap.schema.json"`, ...keys, ...arrays].join(',\n'), '}'].join('\n');
+  return ['{', [`  "$schema": "${schemaUrl(version)}"`, ...keys, ...arrays].join(',\n'), '}'].join('\n');
 }

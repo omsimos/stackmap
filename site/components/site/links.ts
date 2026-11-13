@@ -1,4 +1,4 @@
-const repo = 'https://github.com/omsimos/stackmap';
+import { PACKAGE, REPO as repo } from '@/lib/package';
 
 export const LINKS = {
   how: { label: 'How it works', href: '/#how' },
@@ -14,7 +14,7 @@ export const LINKS = {
   // The film is the video in the README, hosted by GitHub.
   film: { label: 'Launch film', href: `${repo}#readme` },
   github: { label: 'GitHub', href: repo },
-  npm: { label: 'npm', href: 'https://www.npmjs.com/package/@omsimos/stackmap' },
+  npm: { label: 'npm', href: `https://www.npmjs.com/package/${PACKAGE}` },
   contributing: { label: 'Contributing', href: `${repo}/blob/main/CONTRIBUTING.md` },
   security: { label: 'Security', href: `${repo}/blob/main/SECURITY.md` },
   archify: { label: 'archify', href: 'https://github.com/tt-a1i/archify' },
