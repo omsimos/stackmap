@@ -5,12 +5,13 @@ import type { DiagramDraft, DiagramEdge } from './types';
 
 /**
  * Edges that run from a later phase into an earlier one, directly or through unphased nodes: laid out as back
- * edges (a phase can't start before the one it feeds), and reported by validation.
+ * edges (a phase can't start before the one it feeds), and reported by validation. Keyed by edge id; the value
+ * is the index of the phase the edge leads back into.
  */
-export function phaseViolations(draft: DiagramDraft): Set<string> {
+export function phaseViolations(draft: DiagramDraft): Map<string, number> {
   const phaseOf = new Map<string, number>();
   draft.phases?.forEach((p, i) => p.nodes?.forEach((n) => phaseOf.has(n) || phaseOf.set(n, i)));
-  const out = new Set<string>();
+  const out = new Map<string, number>();
   if (!phaseOf.size) return out;
   // The latest phase that reaches each node along forward edges; monotone and bounded by the phase count.
   const reach = new Map(draft.nodes.map((n) => [n.id, phaseOf.get(n.id) ?? -1]));
@@ -22,7 +23,7 @@ export function phaseViolations(draft: DiagramDraft): Set<string> {
       const r = reach.get(e.from)!;
       const target = phaseOf.get(e.to);
       if (target !== undefined && r > target) {
-        out.add(e.id);
+        out.set(e.id, target);
         changed = true;
       } else if (r > reach.get(e.to)!) {
         reach.set(e.to, r);
@@ -36,7 +37,7 @@ export function phaseViolations(draft: DiagramDraft): Set<string> {
 /** Edges that don't push their target to a later column: replies, phase-order breaks, and what closes a cycle. */
 export function backEdges(draft: DiagramDraft): Set<string> {
   const back = new Set(draft.edges.filter((e) => e.kind === 'return' || e.from === e.to).map((e) => e.id));
-  for (const id of phaseViolations(draft)) back.add(id);
+  for (const id of phaseViolations(draft).keys()) back.add(id);
   // DFS in draft order; an edge into a node still on the stack closes a cycle.
   const out = new Map(draft.nodes.map((n) => [n.id, [] as DiagramEdge[]]));
   for (const e of draft.edges) if (!back.has(e.id)) out.get(e.from)?.push(e);
