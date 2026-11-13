@@ -36,17 +36,22 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
   const [closing, setClosing] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
-  const back = useRef<Element | null>(null);
+  const refocus = useRef(true);
   const ids = useId();
 
   useEffect(() => {
     if (!open) return;
-    back.current = document.activeElement;
+    const back = document.activeElement;
+    refocus.current = true;
     setQ('');
     setAt(0);
     setClosing(false);
     loadIndex().then(setIndex, () => setIndex([]));
     requestAnimationFrame(() => input.current?.focus());
+    // On the way out, however it was closed: ⌘K again never goes through close().
+    return () => {
+      if (refocus.current && back instanceof HTMLElement) back.focus({ preventScroll: true });
+    };
   }, [open]);
 
   const results = open ? search(index, q) : [];
@@ -58,11 +63,11 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
 
   if (!open) return null;
 
-  const close = (refocus = true) => {
+  const close = (toWhereItWas = true) => {
     const done = () => {
+      refocus.current = toWhereItWas;
       setClosing(false);
       onClose();
-      if (refocus && back.current instanceof HTMLElement) back.current.focus({ preventScroll: true });
     };
     if (reduced()) return done();
     setClosing(true);
@@ -92,7 +97,8 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
   return (
     <div className="pal" data-closing={closing || undefined}>
       <button className="pal-bd" type="button" tabIndex={-1} aria-label="Close search" onClick={() => close()} />
-      <div className="pal-p pnl" role="dialog" aria-modal="true" aria-label="Search the docs">
+      {/* Focus stays in the field: a press on anything else in the panel would drop it, and the keys with it. */}
+      <div className="pal-p pnl" role="dialog" aria-modal="true" aria-label="Search the docs" onMouseDown={(e) => e.target !== input.current && e.preventDefault()}>
         <div className="pal-q">
           <SearchIcon size={18} strokeWidth={1.75} aria-hidden="true" />
           <label className="sr-only" htmlFor={`${ids}-q`}>

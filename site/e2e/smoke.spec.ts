@@ -393,3 +393,26 @@ test('the try bar stops describing Play once the flow stops or another mode star
   await expect(says).toHaveText(/Select a card/);
   await page.close();
 });
+
+test('the docs search keeps its keys after a press on the panel, and ⌘K closes it back to where focus was', async ({ page }) => {
+  await page.goto('/docs');
+  const from = page.getByRole('navigation', { name: 'Documentation' }).first().getByRole('button', { name: /Search docs/ });
+  const box = page.getByRole('combobox', { name: 'Search the docs' });
+  await expect(async () => {
+    await from.focus();
+    await page.keyboard.press('ControlOrMeta+k');
+    await expect(box).toBeFocused({ timeout: 500 });
+  }).toPass();
+  await expect(page.getByRole('option').first()).toBeVisible();
+  await page.locator('.pal-f').click({ position: { x: 5, y: 5 } });
+  await page.locator('.pal-h').first().click();
+  await expect(box).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(box).toHaveCount(0);
+  await expect(from).toBeFocused();
+  await page.keyboard.press('ControlOrMeta+k');
+  await expect(box).toBeFocused();
+  await page.keyboard.press('ControlOrMeta+k');
+  await expect(box).toHaveCount(0);
+  await expect(from).toBeFocused();
+});
