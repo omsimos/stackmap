@@ -96,6 +96,24 @@ describe('activations', () => {
     ]);
   });
 
+  it('a repeated call from the same caller, with no replies drawn, stays in the bar it opened', () => {
+    // a→b, b→c three times over and never a reply: b is waiting on c throughout, but a's next request is no callback.
+    const calls = [0, 1, 2].flatMap((i) => [m(`r${i}`, 'a', 'b'), m(`q${i}`, 'b', 'c')]);
+    expect(activations(calls)).toEqual([
+      { participant: 'b', depth: 0, from: 0, to: 5 },
+      { participant: 'c', depth: 0, from: 1, to: 5 },
+    ]);
+  });
+
+  it('a call back into a participant waiting down the chain still nests', () => {
+    // a→b, b→c, c→a: a's own call is still out, so c's call nests on a.
+    const bars = activations([m('0', 'x', 'a'), m('1', 'a', 'b'), m('2', 'b', 'c'), m('3', 'c', 'a')]);
+    expect(bars.filter((b) => b.participant === 'a')).toEqual([
+      { participant: 'a', depth: 0, from: 0, to: 3 },
+      { participant: 'a', depth: 1, from: 3, to: 3 },
+    ]);
+  });
+
   it('receiving a reply keeps a bar busy', () => {
     // a→b; b→c; c→b (reply at row 2); d→b: b's first bar runs to row 2, then d's opens.
     const bars = activations([m('0', 'a', 'b'), m('1', 'b', 'c'), m('2', 'c', 'b', { kind: 'return' }), m('3', 'd', 'b')]);
