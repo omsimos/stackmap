@@ -119,12 +119,13 @@ export async function serve(path: string, { template, port = 4400, log = () => {
       res.writeHead(403, { 'content-type': 'text/plain' });
       return void res.end('forbidden host');
     }
-    const url = new URL(req.url ?? '/', 'http://localhost');
+    // Not `new URL`: it throws on a path like `//`, and any page in the user's browser can send one.
+    const pathname = (req.url ?? '/').split('?', 1)[0];
     const read = req.method === 'GET' || req.method === 'HEAD';
-    if (read && url.pathname === '/') {
+    if (read && pathname === '/') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
       res.end(req.method === 'HEAD' ? undefined : page);
-    } else if (req.method === 'GET' && url.pathname === '/events') {
+    } else if (req.method === 'GET' && pathname === '/events') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
       res.write('retry: 1000\n\n');
       send(res, 'diagnostics', JSON.stringify(state));

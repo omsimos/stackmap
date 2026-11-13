@@ -96,6 +96,14 @@ describe('serve', () => {
     expect(await raw(server.url, 'HEAD')).toBe(200);
   });
 
+  it('answers a path that is not a valid URL instead of crashing', async () => {
+    write(commerceApi);
+    server = await serve(file, { template: TEMPLATE, port: 0 });
+    expect(await raw(`${server.url}//`, 'GET')).toBe(404);
+    expect(await raw(`${server.url}/?x=1`, 'GET')).toBe(200);
+    expect(await raw(server.url, 'GET')).toBe(200);
+  });
+
   it('stamps the page and every diagnostics event with the build id, so a stale page can tell', async () => {
     write(commerceApi);
     server = await serve(file, { template: TEMPLATE, port: 0 });
