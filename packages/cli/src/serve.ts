@@ -41,6 +41,13 @@ const diagnostic = (code: string, message: string, fix: string, path: string): D
   allowedFixes: [fix],
 });
 
+/** DNS rebinding: a foreign page resolving its own name to 127.0.0.1 would send its own Host. */
+export function isLocalHost(host: string | undefined, port: number): boolean {
+  // Clients leave the port out of Host when it is http's default.
+  const suffixes = port === 80 ? [':80', ''] : [`:${port}`];
+  return suffixes.some((s) => host === `127.0.0.1${s}` || host === `localhost${s}`);
+}
+
 function listen(server: ReturnType<typeof createServer>, port: number): Promise<number> {
   return new Promise((resolve, reject) => {
     const tryPort = (p: number, left: number) => {
@@ -114,8 +121,7 @@ export async function serve(path: string, { template, port = 4400, log = () => {
 
   let bound = 0;
   const server = createServer((req, res) => {
-    // DNS rebinding: a foreign page resolving its own name to 127.0.0.1 would send its own Host.
-    if (req.headers.host !== `127.0.0.1:${bound}` && req.headers.host !== `localhost:${bound}`) {
+    if (!isLocalHost(req.headers.host, bound)) {
       res.writeHead(403, { 'content-type': 'text/plain' });
       return void res.end('forbidden host');
     }

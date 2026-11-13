@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { commerceApi } from '@stackmap/core/samples';
 import { EMPTY_DATA_BLOCK } from '../src/embed';
-import { LIVE_BLOCK_ID, serve, type ServeHandle } from '../src/serve';
+import { isLocalHost, LIVE_BLOCK_ID, serve, type ServeHandle } from '../src/serve';
 
 const TEMPLATE = `<!doctype html><html><head><title>stackmap</title></head><body><div id="root"></div>${EMPTY_DATA_BLOCK}</body></html>`;
 let dir: string;
@@ -94,6 +94,15 @@ describe('serve', () => {
     expect(await raw(`${server.url}/events`, 'GET', 'evil.example')).toBe(403);
     expect(await raw(server.url, 'GET', `localhost:${port}`)).toBe(200);
     expect(await raw(server.url, 'HEAD')).toBe(200);
+  });
+
+  it('accepts a Host without a port only on port 80, where clients leave it out', () => {
+    expect(isLocalHost('127.0.0.1', 80)).toBe(true);
+    expect(isLocalHost('localhost', 80)).toBe(true);
+    expect(isLocalHost('localhost:80', 80)).toBe(true);
+    expect(isLocalHost('localhost', 4400)).toBe(false);
+    expect(isLocalHost('evil.example', 80)).toBe(false);
+    expect(isLocalHost(undefined, 80)).toBe(false);
   });
 
   it('answers a path that is not a valid URL instead of crashing', async () => {
