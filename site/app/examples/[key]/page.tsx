@@ -12,6 +12,7 @@ import { diagramOf, SOURCES, stillOf } from '@/lib/diagrams';
 import { kindHref } from '@/lib/docs-nav';
 import { KIND_PAGES } from '@/lib/kinds';
 import { OPEN_GRAPH } from '@/lib/seo';
+import { article } from '@/lib/words';
 
 export const dynamicParams = false;
 
@@ -27,9 +28,10 @@ export async function generateMetadata({ params }: PageProps<'/examples/[key]'>)
   if (!e) return {};
   const { draft } = diagramOf(e);
   const href = exampleHref(e);
+  const kind = KIND_LABELS[e.kind].toLowerCase();
   return {
     title: `${draft.title} · Examples`,
-    description: `${draft.subtitle ? `${draft.subtitle}. ` : ''}A ${KIND_LABELS[e.kind].toLowerCase()} diagram laid out by stackmap, open in the viewer.`,
+    description: `${draft.subtitle ? `${draft.subtitle}. ` : ''}${article(kind, true)} ${kind} diagram laid out by stackmap, open in the viewer.`,
     alternates: { canonical: href },
     openGraph: { ...OPEN_GRAPH, url: href },
   };
