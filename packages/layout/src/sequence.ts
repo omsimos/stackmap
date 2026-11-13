@@ -40,9 +40,10 @@ export interface Bar {
 
 /**
  * Activation bars by simulation over the messages in order, per participant a stack of open bars:
- * - a call to an idle participant opens a bar; a call to one that is waiting on its own call (a callback)
- *   nests a bar inside; a call from someone new to a participant that is busy but waiting on nobody first ends
- *   the old bar where it was last busy;
+ * - a call to an idle participant opens a bar; a call to one that is waiting on its own call nests a bar inside,
+ *   when it is a callback or comes from a new caller (a caller repeating its request with no reply drawn stays in
+ *   the bar it opened); a call from someone new to a participant that is busy but waiting on nobody first ends the
+ *   old bar where it was last busy;
  * - a reply closes the replier's bar opened by the one it answers (else its innermost), with any nested inside;
  * - a self-call nests a short bar; sending or receiving keeps a bar busy;
  * - a bar still open at the end runs to its participant's last message.
@@ -61,6 +62,17 @@ export function activations(edges: DiagramEdge[]): Bar[] {
   const touch = (p: string, row: number) => {
     const top = stacks.get(p)?.at(-1);
     if (top) top.busy = row;
+  };
+  /** Whether `p` is waiting on `q`, directly or down its chain of calls: a call from `q` is then a callback. */
+  const awaits = (p: string, q: string) => {
+    const seen = new Set([p]);
+    for (const x of seen) {
+      for (const w of waiting.get(x) ?? []) {
+        if (w === q) return true;
+        seen.add(w);
+      }
+    }
+    return false;
   };
   edges.forEach((e, row) => {
     last.set(e.from, row);
@@ -90,7 +102,8 @@ export function activations(edges: DiagramEdge[]): Bar[] {
     }
     // Receiving counts as busy, but only for work this message belongs to (checked above).
     touch(e.to, row);
-    if (!st.length || (pending && e.kind !== 'async')) {
+    // Without the caller check, every repeat of an unanswered request would nest one bar deeper.
+    if (!st.length || (pending && e.kind !== 'async' && (awaits(e.to, e.from) || !st.some((b) => b.caller === e.from)))) {
       const bar: Bar = { participant: e.to, depth: st.length, from: row, to: row, caller: e.from, busy: row };
       st.push(bar);
       bars.push(bar);
