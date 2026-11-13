@@ -45,6 +45,8 @@ export function ViewerShell({
   const [presenting, setPresenting] = useState(false);
   const presentingRef = useRef(false);
   presentingRef.current = presenting;
+  // Full screen lands frames after the presentation toggles, and resizes the stage a second time.
+  const [fullscreen, setFullscreen] = useState(false);
   const present = useCallback((on: boolean) => {
     presentingRef.current = on;
     setPresenting(on);
@@ -72,6 +74,7 @@ export function ViewerShell({
     };
     // Leaving full screen (Esc in the browser's own handling) ends the presentation too.
     const onFullscreen = () => {
+      setFullscreen(!!document.fullscreenElement);
       if (!document.fullscreenElement) setPresenting(false);
       // A request that resolved after the presentation already ended (a quick F, F): leave full screen again.
       else if (!presentingRef.current) void document.exitFullscreen().catch(() => {});
@@ -124,7 +127,7 @@ export function ViewerShell({
             className={`@container/stage relative min-w-0 flex-1 overflow-hidden bg-stage ${presenting ? '' : 'rounded-[20px]'}`}
             style={presenting ? undefined : { boxShadow: 'inset 0 0 0 1px var(--sm-panel-border)' }}
           >
-            <DiagramCanvas diagram={diagram} chrome={!presenting} stage={focused ? 'focus' : undefined}>
+            <DiagramCanvas diagram={diagram} chrome={!presenting} stage={`${focused ? 'focus' : ''}${fullscreen ? ' fullscreen' : ''}`}>
               <CanvasPanel position="top-left" className="flex max-w-[calc(100%-30px)]">
                 {toolbarHidden ? (
                   <div className={`${PANEL_CLASS} p-1.5`} style={PANEL_STYLE}>
