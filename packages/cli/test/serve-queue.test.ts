@@ -21,8 +21,6 @@ it('runs one rebuild for all the saves that arrive during a slow one', async () 
   writeFileSync(file, '1');
   build.mockResolvedValueOnce(built('first'));
   server = await serve(file, { template: '<body></body>', port: 0 });
-  // FSEvents can still report the write above; let that settle so it isn't counted below.
-  await pause(400);
   build.mockClear();
 
   let release!: () => void;
@@ -37,4 +35,17 @@ it('runs one rebuild for all the saves that arrive during a slow one', async () 
   await expect.poll(async () => (await fetch(server!.url)).text(), { timeout: 4000 }).toContain('<title>latest</title>');
   await pause(300);
   expect(build).toHaveBeenCalledTimes(2);
+});
+
+it('does not rebuild for a save that leaves the content as it was built', async () => {
+  const file = join(mkdtempSync(join(tmpdir(), 'stackmap-queue-')), 'd.json');
+  writeFileSync(file, '1');
+  build.mockResolvedValue(built('first'));
+  server = await serve(file, { template: '<body></body>', port: 0 });
+  build.mockClear();
+  writeFileSync(file, '1');
+  await pause(400);
+  expect(build).not.toHaveBeenCalled();
+  writeFileSync(file, '2');
+  await expect.poll(() => build.mock.calls.length, { timeout: 4000 }).toBe(1);
 });
