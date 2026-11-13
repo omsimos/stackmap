@@ -347,7 +347,8 @@ export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram
       wire(reversed);
       ({ laid } = await run());
     }
-    const place = (l: LaidOutDiagram) => placeLabels(draft.edges, l.edges, Object.values(l.nodes), !compact, Object.values(l.groups).map((rect) => ({ rect, band: GROUP_LABEL_BAND })));
+    const frames = (l: LaidOutDiagram) => (draft.groups ?? []).map((g) => ({ rect: l.groups[g.id]!, band: GROUP_LABEL_BAND, title: titleWidth(g) }));
+    const place = (l: LaidOutDiagram) => placeLabels(draft.edges, l.edges, Object.values(l.nodes), !compact, frames(l));
     let spots = place(laid);
     // A label that found no room to sit widens the layer gaps: compact layouts start tight on purpose, and a full
     // layout's gap can still be narrower than a label beside a branch. Two ways to make room are tried: wider gaps,

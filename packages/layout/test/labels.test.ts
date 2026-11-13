@@ -127,6 +127,17 @@ describe('labels beside a trunk', () => {
   });
 });
 
+describe('labels by a group frame', () => {
+  it("stay off a title longer than the frame's default strip", () => {
+    // The run crosses the title band; the route midpoint sits past 160px but still under a 300px title.
+    const a = [{ x: 100, y: 24 }, { x: 440, y: 24 }];
+    const frame = { rect: { x: -40, y: -40, width: 700, height: 300 }, band: 100 };
+    const pill = (labels: Record<string, Point>) => labels.a!.x - labelWidth('ok') / 2;
+    expect(pill(placeLabels([{ id: 'a', label: 'ok' }], { a }, [], false, [frame]).labels)).toBeLessThan(300);
+    expect(pill(placeLabels([{ id: 'a', label: 'ok' }], { a }, [], false, [{ ...frame, title: 340 }]).labels)).toBeGreaterThanOrEqual(300);
+  });
+});
+
 describe('labels on a fan-out', () => {
   it('sit on the far half of each edge, by the card they name, not by the shared source', async () => {
     for (const name of ['hub-down', 'hub-right'] as const) {
