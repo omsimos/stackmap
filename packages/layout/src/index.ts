@@ -9,6 +9,7 @@ import { cardSize, isLaneKind, measureText, round, usesCompactCards, type Diagra
 import { runChild, threadPort } from './elk-io';
 import { placeLabels } from './labels';
 import { layoutLanes } from './lanes';
+import { simplify } from './route';
 import { layoutSequence } from './sequence';
 
 export { layoutLanes } from './lanes';
@@ -425,18 +426,15 @@ function collect(draft: DiagramDraft, result: ElkNode, direction: Direction, sta
  * as a soft, slanted hairline. Snap each such run to one whole coordinate (a run continuing a straight one keeps its
  * line) and drop the bends that no longer turn. Edges sharing a trunk share its points, so they snap alike.
  */
-function squared(pts: Point[]): Point[] {
+export function squared(pts: Point[]): Point[] {
   for (let i = 1; i < pts.length; i++) {
     const [a, b] = [pts[i - 1]!, pts[i]!];
     const [dx, dy] = [Math.abs(a.x - b.x), Math.abs(a.y - b.y)];
     if (dx > 0 && dx < 1 && dy >= 1) a.x = b.x = i > 1 && pts[i - 2]!.x === a.x ? a.x : Math.round((a.x + b.x) / 2);
     else if (dy > 0 && dy < 1 && dx >= 1) a.y = b.y = i > 1 && pts[i - 2]!.y === a.y ? a.y : Math.round((a.y + b.y) / 2);
   }
-  return pts.filter((p, i) => {
-    const [prev, next] = [pts[i - 1], pts[i + 1]];
-    if (!prev || !next) return true;
-    return !((prev.x === p.x && p.x === next.x) || (prev.y === p.y && p.y === next.y));
-  });
+  // Repeated points first: tested against its twin, a doubled corner would count as straight both ways and vanish.
+  return simplify(pts);
 }
 
 const STEP_MAX = 16;
