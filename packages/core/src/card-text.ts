@@ -27,6 +27,9 @@ const C_TILE = 28;
 const C_GAP = 10;
 const C_TEXT = COMPACT.width - 2 * C_PAD - C_TILE - C_GAP; // 114
 
+/** Text as a card shows it: white-space: nowrap collapses runs of whitespace and trims the ends. */
+export const shownText = (text: string) => text.replace(/\s+/g, ' ').trim();
+
 export function cardTextSlots(card: CardData, variant: CardVariant = 'full'): TextSlot[] {
   const slots: TextSlot[] = [];
   const add = (path: string, text: string | undefined, face: FontFace, size: number, maxWidth: number) => {
@@ -48,7 +51,7 @@ export function cardTextSlots(card: CardData, variant: CardVariant = 'full'): Te
     const face: FontFace = row.mono ? 'mono400' : 'sans400';
     const valueMax = INNER * ROW_VALUE_MAX;
     // The value is shrink-0 up to its cap, so the label gets whatever the rendered value leaves.
-    const valueWidth = Math.min(measureText(row.value, face, 12), valueMax);
+    const valueWidth = Math.min(measureText(shownText(row.value), face, 12), valueMax);
     add(`/rows/${i}/label`, row.label, 'sans400', 12, INNER - GAP - valueWidth);
     add(`/rows/${i}/value`, row.value, face, 12, valueMax);
   });
