@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Point } from '@stackmap/core';
 import { glowAt, pointAt, PULSE, pulseFrame, ringAt, sliceAt, type Flow, type FlowPulse } from '../motion/flow';
-import { setInFlight } from '../motion/inFlight';
+import { useInFlightStore } from '../motion/inFlight';
 
 const accent = (p: FlowPulse) => `var(--sm-${p.tint}-accent)`;
 const polyline = (path: Point[]) => `M${path.map((q) => `${q.x} ${q.y}`).join('L')}`;
@@ -38,6 +38,7 @@ export function FlowLayer({ flow, width, height, speed = 1, clock }: { flow: Flo
   const root = useRef<SVGGElement>(null);
   const rate = useRef(speed);
   rate.current = speed;
+  const inFlight = useInFlightStore();
   useEffect(() => {
     const groups = [...(root.current?.children ?? [])] as SVGGElement[];
     if (!groups.length) return;
@@ -55,7 +56,7 @@ export function FlowLayer({ flow, width, height, speed = 1, clock }: { flow: Flo
       return on;
     };
     // Only the viewer's own playback says which edges are in flight; a borrowed clock is someone else's.
-    const tracked = !clock;
+    const tracked = clock ? null : inFlight;
     const draw = (ms: number | null) => {
       const flying: string[] = [];
       flow.pulses.forEach((p, i) => {
@@ -96,14 +97,14 @@ export function FlowLayer({ flow, width, height, speed = 1, clock }: { flow: Flo
           h.setAttribute('transform', `translate(${at.x} ${at.y})`);
         });
       });
-      if (tracked) setInFlight(flying);
+      tracked?.set(flying);
     };
     const stop = (clock ?? playingClock(() => rate.current))(draw);
     return () => {
       stop();
-      if (tracked) setInFlight([]);
+      tracked?.set([]);
     };
-  }, [flow, clock]);
+  }, [flow, clock, inFlight]);
   return (
     <svg aria-hidden="true" data-flow="" className="pointer-events-none absolute top-0 left-0 overflow-visible" width={width} height={height}>
       <g ref={root}>
