@@ -4,6 +4,7 @@ import { countByType, TYPE_LABELS, type DiagramDraft, type DiagramEdge, type Dia
 import { focusCard } from '../canvas/SceneLayers';
 import { routeBetween } from '../explore/graph';
 import { useExplore } from '../explore/ExploreContext';
+import { useViewerRoot } from '../explore/scope';
 import { useInFlight } from '../motion/inFlight';
 import { swapIn } from '../motion/motion';
 import { IconButton, PANEL_STYLE } from './ui';
@@ -163,6 +164,7 @@ function Connections({ node }: { node: DiagramNode }) {
 
 function NodeDetail({ node, toggle }: { node: DiagramNode; toggle: ReactNode }) {
   const { draft, dispatch } = useExplore();
+  const root = useViewerRoot();
   const { card } = node;
   const lane = node.lane ? draft.lanes?.find((l) => l.id === node.lane)?.label : undefined;
   const H = useHeading(0);
@@ -179,7 +181,7 @@ function NodeDetail({ node, toggle }: { node: DiagramNode; toggle: ReactNode }) 
             label="Clear selection (Esc)"
             onClick={() => {
               dispatch({ type: 'clear' });
-              focusCard(node.id); // back where the keyboard user came from
+              focusCard(node.id, root()); // back where the keyboard user came from
             }}
           >
             <X size={16} strokeWidth={1.75} />
