@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cardSize, type DiagramDraft, type DiagramNode, type Point, type Rect } from '@stackmap/core';
 import { commerceApi, groupedPlatform } from '@stackmap/core/samples';
-import { GROUP_LABEL_BAND, layoutDiagram } from '../src/index';
+import { GROUP_LABEL_BAND, layoutDiagram, squared } from '../src/index';
 import { STRESS } from './stress';
 
 const node = (id: string, extra: Partial<DiagramNode> = {}): DiagramNode => ({
@@ -17,6 +17,16 @@ const near = (a: Point, b: Point) => {
   expect(a.x).toBeCloseTo(b.x, 0);
   expect(a.y).toBeCloseTo(b.y, 0);
 };
+
+describe('squared', () => {
+  it('snaps a near-straight run and drops the bend that no longer turns', () => {
+    expect(squared([{ x: 0, y: 10.33 }, { x: 50, y: 10 }, { x: 90, y: 10 }])).toEqual([{ x: 0, y: 10 }, { x: 90, y: 10 }]);
+  });
+
+  it('keeps a corner that comes as two points in the same place', () => {
+    expect(squared([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])).toEqual([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }]);
+  });
+});
 
 describe('layoutDiagram', () => {
   it('places the target to the right and routes port to port', async () => {
