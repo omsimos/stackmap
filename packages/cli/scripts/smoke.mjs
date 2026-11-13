@@ -4,10 +4,12 @@ import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { GALLERY } from '../../core/src/samples/gallery.ts';
 import { commerceApi, groupedPlatform } from '../../core/src/samples/index.ts';
 
-const cli = new URL('../dist/cli.js', import.meta.url).pathname;
+// Not `.pathname`: it keeps percent-escapes, so a checkout path with a space would not resolve.
+const cli = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
 const dir = mkdtempSync(join(tmpdir(), 'stackmap-smoke-'));
 const run = (...args) => execFileSync('node', [cli, ...args], { encoding: 'utf8' });
 const check = (ok, msg) => {

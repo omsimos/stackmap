@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 import { commerceApi } from '@stackmap/core/samples';
 
@@ -15,7 +16,7 @@ async function start(initial: unknown, port = '0') {
     file = join(mkdtempSync(join(tmpdir(), 'stackmap-live-')), 'd.json');
     write(initial);
   }
-  proc = spawn('node', [new URL('../dist/cli.js', import.meta.url).pathname, 'serve', file, '--port', port]);
+  proc = spawn('node', [fileURLToPath(new URL('../dist/cli.js', import.meta.url)), 'serve', file, '--port', port]);
   url = await new Promise<string>((resolve, reject) => {
     proc.stdout!.on('data', (b: Buffer) => {
       const m = /serving (http:\/\/127\.0\.0\.1:\d+)/.exec(b.toString());
