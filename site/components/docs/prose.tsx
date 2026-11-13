@@ -92,17 +92,6 @@ export function Ask({ text, className = '' }: { text: string; className?: string
   );
 }
 
-export function Note({ icon, children }: { icon: ReactNode; children: ReactNode }) {
-  return (
-    <p className="note">
-      <span className="ic" aria-hidden="true">
-        {icon}
-      </span>
-      <span>{children}</span>
-    </p>
-  );
-}
-
 /** The page's title block. */
 export function DocHead({ crumb, title, lede }: { crumb: string; title: string; lede: ReactNode }) {
   return (
