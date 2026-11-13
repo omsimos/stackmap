@@ -57,8 +57,8 @@ export function ExampleGrid({ items, ledes }: { items: GridItem[]; ledes: Record
   }, [kind]);
 
   const matches = (i: GridItem, k: Kind = kind) => (k === 'all' || i.kind === k) && (!agent || i.agent);
-  const shown = items.filter((i) => matches(i)).length;
-  const count = (k: Kind) => items.filter((i) => (k === 'all' || i.kind === k) && (!agent || i.agent)).length;
+  const count = (k: Kind) => items.filter((i) => matches(i, k)).length;
+  const shown = count(kind);
   const label = kind === 'all' ? '' : KIND_LABELS[kind].toLowerCase();
   const sum = kind !== 'all' ? ledes[kind] : `${shown} diagrams${agent ? ' that coding agents wrote.' : ' across five kinds.'}`;
 
