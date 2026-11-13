@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { watch, type FSWatcher } from 'node:fs';
+import { readFileSync, watch, type FSWatcher } from 'node:fs';
 import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { basename, dirname } from 'node:path';
@@ -100,7 +100,17 @@ export async function serve(path: string, { template, port = 4400, log = () => {
   };
 
   let built = false;
+  // What the last build read: the watcher also reports saves that change nothing, and a write from just before it started.
+  let source = '';
+  const fingerprint = () => {
+    try {
+      return createHash('sha256').update(readFileSync(path)).digest('hex');
+    } catch {
+      return '';
+    }
+  };
   const rebuild = async () => {
+    source = fingerprint();
     try {
       const result = await buildHtml(path, template, log);
       publish({ ok: result.ok, diagnostics: result.diagnostics }, result.html);
@@ -126,7 +136,7 @@ export async function serve(path: string, { template, port = 4400, log = () => {
     running = running
       .then(() => {
         queued = false;
-        return rebuild();
+        if (fingerprint() !== source) return rebuild();
       })
       .catch((e: unknown) => log(`✗ rebuild failed: ${(e as Error).message}`));
   };
