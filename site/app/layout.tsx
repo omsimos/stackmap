@@ -7,7 +7,7 @@ import { DocsFooter, Footer } from '@/components/site/Footer';
 import { FooterFor } from '@/components/site/FooterFor';
 import { Nav } from '@/components/site/Nav';
 import { DESCRIPTION, OPEN_GRAPH, SITE_NAME, siteUrl } from '@/lib/seo';
-import { THEME_SCRIPT, themeCss } from '@/lib/theme';
+import { SETTLED_SCRIPT, THEME_SCRIPT, themeCss } from '@/lib/theme';
 import './globals.css';
 import './site.css';
 
@@ -30,10 +30,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    // The head script sets data-theme from the reader's stored choice before React hydrates.
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
+    // The head script sets data-theme from the reader's stored choice before React hydrates. data-scroll-behavior
+    // has the router land on a new page at once instead of gliding there (the CSS glide is for moves within a page).
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: `${THEME_SCRIPT};${SETTLED_SCRIPT}` }} />
         <style dangerouslySetInnerHTML={{ __html: themeCss() }} />
       </head>
       <body>
