@@ -5,7 +5,7 @@ import { Worker as Thread } from 'node:worker_threads';
 import ElkApi from 'elkjs/lib/elk-api.js';
 import ElkBundled from 'elkjs/lib/elk.bundled.js';
 import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api';
-import { cardSize, isLaneKind, measureText, round, usesCompactCards, type DiagramDraft, type DiagramGroup, type Direction, type LaidOutDiagram, type Point, type Rect } from '@stackmap/core';
+import { cardSize, isLaneKind, LARGE_DIAGRAM, measureText, round, usesCompactCards, type DiagramDraft, type DiagramGroup, type Direction, type LaidOutDiagram, type Point, type Rect } from '@stackmap/core';
 import { runChild, threadPort } from './elk-io';
 import { boundsWithLabels, placeLabels } from './labels';
 import { layoutLanes } from './lanes';
@@ -24,13 +24,12 @@ const COMPACT_GAP = { right: 72, max: 168 } as const;
 /** Widest layer gap a full-card layout grows to so its labels fit. */
 const FULL_GAP_MAX = 280;
 const GROUP_LAYER_GAP = 80;
-/** Past this many nodes (where validation warns to split), or edges, a layout takes ELK's cheaper settings and isn't
- * redone, to fix an edge against the flow or make room for labels: each ELK run grows roughly with the square of the
- * graph, and a diagram that size is read zoomed in anyway. */
-const RETRY_LIMIT = 60;
-const RETRY_EDGE_LIMIT = 3 * RETRY_LIMIT;
+/** Past LARGE_DIAGRAM nodes, or this many edges, a layout takes ELK's cheaper settings and isn't redone, to fix an edge
+ * against the flow or make room for labels: each ELK run grows roughly with the square of the graph, and a diagram
+ * that size is read zoomed in anyway. */
+const LARGE_EDGES = 3 * LARGE_DIAGRAM;
 /** A diagram the layout treats as large: the CLI says so before laying one out, since it can still take a while. */
-export const isLarge = (draft: DiagramDraft) => draft.nodes.length > RETRY_LIMIT || draft.edges.length > RETRY_EDGE_LIMIT;
+export const isLarge = (draft: DiagramDraft) => draft.nodes.length > LARGE_DIAGRAM || draft.edges.length > LARGE_EDGES;
 const LAYER_GAP = 'elk.layered.spacing.nodeNodeBetweenLayers';
 const EDGE_RUN = 'elk.layered.spacing.edgeNodeBetweenLayers';
 const GROUP_PREFIX = 'group:';
