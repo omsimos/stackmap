@@ -131,7 +131,12 @@ export function layoutLanes(draft: DiagramDraft): LaidOutDiagram {
   const xs = [x0 - (hasStart ? START_MARK : 0) - LANE_PAD_X / 2, bandX + bandW - LANE_PAD_X / 2];
   for (let c = 0; c < cols - 1; c++) xs.push(colX(c) + cardW + gutter / 2);
   const ys: number[] = [];
-  for (const r of Object.values(laneRects)) ys.push(r.y + r.height - LANE_PAD_BOTTOM / 2, r.y - LANE_GAP / 2, r.y + r.height + LANE_GAP / 2);
+  // Above the first lane the channel runs mid-way to the phase header, whose lower edge is where it would else be.
+  const above = (r: Rect) => r.y - (r.y === top && draft.phases?.length ? PHASE_GAP : LANE_GAP) / 2;
+  for (const r of Object.values(laneRects)) ys.push(r.y + r.height - LANE_PAD_BOTTOM / 2, above(r), r.y + r.height + LANE_GAP / 2);
+  // The lines the diagram rules itself. A first-row card's top stub ends on its lane's upper edge (LANE_PAD_TOP is
+  // one STUB), so a route bending there would run along it: routes pay to, and nudged tracks never land on one.
+  const ruled = [...Object.values(laneRects).flatMap((r) => [r.y, r.y + r.height]), ...(draft.phases?.length ? [PAD + PHASE_BAND] : [])];
   // Lane rails, group labels and start markers are text and marks that edges must not run over.
   const obstacles: Rect[] = [];
   for (const lane of lanes) {
@@ -173,7 +178,7 @@ export function layoutLanes(draft: DiagramDraft): LaidOutDiagram {
     })
     .sort((a, b) => a.order - b.order);
   const ends = Object.fromEntries(draft.edges.map((e) => [e.id, { from: e.from, to: e.to }]));
-  const routed = nudge(routeEdges(rects, requests, { xs, ys }, obstacles), ends, Object.values(rects));
+  const routed = nudge(routeEdges(rects, requests, { xs, ys, ruled }, obstacles), ends, Object.values(rects), ruled);
 
   const edges: Record<string, Point[]> = {};
   for (const e of draft.edges) {

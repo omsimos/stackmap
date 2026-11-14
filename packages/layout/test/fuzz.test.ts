@@ -98,9 +98,12 @@ describe('lane layout properties', () => {
     const ports = new Map<string, Set<'in' | 'out'>>();
     expectOffCards(d, out);
     expect(overlappingPortRuns(d, out)).toEqual([]);
+    // A first-row card's top stub ends on its lane's upper edge: no route turns there and runs along the edge.
+    const tops = Object.values(out.lanes ?? {}).map((r) => r.y);
     for (const e of d.edges) {
       const pts = out.edges[e.id]!;
       for (let i = 1; i < pts.length; i++) expect(pts[i]!.x === pts[i - 1]!.x || pts[i]!.y === pts[i - 1]!.y, `${e.id} is orthogonal`).toBe(true);
+      for (let i = 1; i < pts.length; i++) expect(pts[i]!.x !== pts[i - 1]!.x && tops.some((y) => Math.abs(y - pts[i]!.y) < 0.5), `${e.id} runs along a lane's edge`).toBe(false);
       for (const [role, p] of [['out', pts[0]!], ['in', pts.at(-1)!]] as const) {
         const key = `${p.x},${p.y}`;
         ports.set(key, (ports.get(key) ?? new Set()).add(role));
