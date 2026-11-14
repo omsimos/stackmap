@@ -175,6 +175,26 @@ describe('kind rules', () => {
     ]);
   });
 
+  it('warns that a group beside phases can lie across their bands', () => {
+    const staged = {
+      kind: 'architecture',
+      title: 't',
+      groups: [{ id: 'g', label: 'G' }],
+      phases: [{ id: 'in', label: 'In', nodes: ['a'] }, { id: 'out', label: 'Out', nodes: ['c'] }],
+      nodes: [
+        { id: 'a', type: 'client', card: { title: 'A' } },
+        { id: 'b', type: 'service', group: 'g', card: { title: 'B' } },
+        { id: 'c', type: 'database', card: { title: 'C' } },
+      ],
+      edges: [
+        { id: 'e1', from: 'a', to: 'b' },
+        { id: 'e2', from: 'b', to: 'c' },
+      ],
+    };
+    expect(codes(staged)).toEqual(['warning:semantics/group-outside-phases@/groups/0']);
+    expect(codes({ ...staged, phases: undefined })).toEqual([]);
+  });
+
   it('sequence: replies must answer a call, and time bands follow each other', () => {
     const seq = (edges: unknown[], phases?: unknown[]) => ({
       kind: 'sequence',
