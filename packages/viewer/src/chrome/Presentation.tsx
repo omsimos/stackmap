@@ -22,6 +22,8 @@ export function PresentBar({ onExit }: { onExit: () => void }) {
   const step = steps[at]!;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // ⌘/Ctrl/Alt with an arrow is the browser's own (back, forward, end of page).
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       // Space and Enter on a focused button press that button.
       if ((e.key === ' ' || e.key === 'Enter') && e.target instanceof HTMLButtonElement) return;
       const to = { ArrowRight: at + 1, PageDown: at + 1, ' ': at + 1, ArrowLeft: at - 1, PageUp: at - 1, Home: 0, End: steps.length - 1 }[e.key];

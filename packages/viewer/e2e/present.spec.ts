@@ -62,6 +62,18 @@ test('F presents: chrome hidden, one step per view, arrows step, Esc ends', asyn
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 });
 
+test('a presentation leaves ⌘/Ctrl/Alt key combinations to the browser', async ({ page }) => {
+  await page.goto('/?page=release-delivery');
+  await expect(page.locator('.sm-card').first()).toBeVisible();
+  await page.keyboard.press('f');
+  const bar = page.getByRole('group', { name: 'Presentation' });
+  await expect(bar).toContainText('1 / 3');
+  for (const combo of ['Alt+ArrowRight', 'Control+End', 'Meta+ArrowRight']) await page.keyboard.press(combo);
+  await expect(bar).toContainText('1 / 3');
+  await page.keyboard.press('ArrowRight');
+  await expect(bar).toContainText('2 / 3');
+});
+
 test('Esc cancels route picking even with focus on the Route button', async ({ page }) => {
   await page.goto('/?page=release-delivery');
   await page.getByRole('button', { name: 'Route between two nodes (R)' }).click();
