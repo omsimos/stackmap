@@ -24,6 +24,14 @@ describe('nudge', () => {
     for (const y of lines) expect(y).toBeLessThanOrEqual(card.y - 4);
   });
 
+  it('hands out no track on a line the diagram rules itself', () => {
+    const routes = Object.fromEntries(
+      Array.from({ length: 2 }, (_, k) => [`e${k}`, [{ x: k * 10, y: 0 }, { x: k * 10, y: 100 }, { x: 300 + k * 10, y: 100 }, { x: 300 + k * 10, y: 300 }]]),
+    );
+    expect(nudge(routes, apart(['e0', 'e1'])).e1![1]!.y).toBe(108);
+    expect(nudge(routes, apart(['e0', 'e1']), [], [108]).e1![1]!.y).toBe(92);
+  });
+
   it("never turns a port run back into the edge's own card", () => {
     // The ninth track is 32px up: past the 20px run out of the card's bottom, and still MIN_RUN away from the port.
     const card = { x: -88, y: -60, width: 176, height: 60 };

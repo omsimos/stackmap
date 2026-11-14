@@ -27,6 +27,8 @@ const MARGIN = 12;
 const BEND = 48;
 /** Extra cost per px for running along a channel another, unrelated edge already uses. */
 const SHARED = 1.5;
+/** Extra cost per px for running along a line the diagram rules itself (a lane's edge): the edge would read as part of it. */
+const RULED = 1.5;
 const TRACK = 8;
 /** Cost of a side the request didn't ask for: a last resort, so every edge gets an orthogonal route. */
 const ANY_SIDE = 400;
@@ -214,12 +216,13 @@ interface Port {
 
 /**
  * Routes every request around `nodes` (and extra `obstacles`, e.g. labels), using `xs`/`ys` as channel lines.
+ * `ruled` are the horizontal lines the diagram draws itself, which routes keep off where another way is as short.
  * Returns each edge's polyline from port to port, first point on the source card, last on the target card.
  */
 export function routeEdges(
   nodes: Record<string, Rect>,
   requests: RouteRequest[],
-  channels: { xs: number[]; ys: number[] },
+  channels: { xs: number[]; ys: number[]; ruled?: number[] },
   obstacles: Rect[] = [],
 ): Record<string, Point[]> {
   const xs = [...channels.xs];
@@ -236,6 +239,7 @@ export function routeEdges(
   }
   const blocked = [...Object.values(nodes).map((r) => inflate(r, MARGIN)), ...obstacles];
   const grid = buildGrid(xs, ys, blocked);
+  const ruled = new Set((channels.ruled ?? []).map(round));
   const at = new Map(grid.pts.map((p, i) => [`${p.x},${p.y}`, i]));
   const find = (p: Point) => at.get(`${round(p.x)},${round(p.y)}`);
   const usedSteps = new Map<number, Used[]>();
@@ -310,7 +314,9 @@ export function routeEdges(
       const [lo, hi] = vertical ? [Math.min(p.y, q.y), Math.max(p.y, q.y)] : [Math.min(p.x, q.x), Math.max(p.x, q.x)];
       return spans.some((u) => (u.role === 'out' ? req.from : req.to) !== u.node && lo < u.hi && u.lo < hi) ? FACING : 0;
     };
-    const extra = (a: number, b: number, len: number) => (unrelated(usedSteps.get(stepKey(a, b))) ? SHARED * len : 0) + (unrelated(usedPoints.get(b)) ? CROSS : 0) + facing(a, b);
+    const onRule = (a: number, b: number) => grid.pts[a]!.y === grid.pts[b]!.y && ruled.has(grid.pts[a]!.y);
+    const extra = (a: number, b: number, len: number) =>
+      (unrelated(usedSteps.get(stepKey(a, b))) ? SHARED * len : 0) + (unrelated(usedPoints.get(b)) ? CROSS : 0) + facing(a, b) + (onRule(a, b) ? RULED * len : 0);
     // Search near the two cards first (most routes stay local); only a route that needs more room gets the grid.
     const box = { x0: Math.min(src.x, dst.x) - REGION, y0: Math.min(src.y, dst.y) - REGION, x1: Math.max(src.x + src.width, dst.x + dst.width) + REGION, y1: Math.max(src.y + src.height, dst.y + dst.height) + REGION };
     const path = search(grid, starts, goals, extra, box) ?? search(grid, starts, goals, extra);
@@ -443,10 +449,10 @@ interface Seg {
  * Spreads unrelated edges that run along the same line over parallel tracks, TRACK px apart. Segments of
  * edges that share a source or a target stay merged (a trunk). Segments on a port never move, and a move
  * never shortens a port's straight run below MIN_RUN, so edges still meet their cards square. A segment takes the
- * nearest track that keeps it and the runs it stretches off the `cards`, and its port runs off other edges' lines;
- * with none, it stays where it was routed.
+ * nearest track that keeps it and the runs it stretches off the `cards`, its port runs off other edges' lines, and
+ * a horizontal run off the `ruled` lines the diagram draws itself; with none, it stays where it was routed.
  */
-export function nudge(routes: Record<string, Point[]>, ends: Record<string, { from: string; to: string }>, cards: Rect[] = []): Record<string, Point[]> {
+export function nudge(routes: Record<string, Point[]>, ends: Record<string, { from: string; to: string }>, cards: Rect[] = [], ruled: number[] = []): Record<string, Point[]> {
   const out: Record<string, Point[]> = Object.fromEntries(Object.entries(routes).map(([k, v]) => [k, simplify(v).map((p) => ({ ...p }))]));
   for (const vertical of [true, false]) {
     const lines = new Map<number, Seg[]>();
@@ -474,7 +480,8 @@ export function nudge(routes: Record<string, Point[]>, ends: Record<string, { fr
       // Each segment moves as soon as it has its track, so the next one is checked against where things now are.
       for (const seg of segs) {
         let t = 0;
-        while (!free(seg, t) || (t > 0 && !fits(out, ends, cards, seg, axis, offset(t)))) {
+        const onRule = (off: number) => !vertical && ruled.some((y) => Math.abs(seg.at + off - y) < 0.5);
+        while (!free(seg, t) || (t > 0 && (onRule(offset(t)) || !fits(out, ends, cards, seg, axis, offset(t))))) {
           if (++t <= 2 * segs.length + 8) continue;
           // No track fits: it holds the first free one, as a segment kept back by its port run does, and stays put.
           t = 0;
