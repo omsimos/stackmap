@@ -15,7 +15,8 @@ describe('browserCommands', () => {
 
   it('tries the Windows side first on WSL, and xdg-open last', () => {
     const commands = browserCommands('/tmp/a.html', 'linux', true) as Opener[];
-    expect(commands.map((c) => c.cmd)).toEqual(['wslview', 'powershell.exe', 'xdg-open']);
+    expect(commands.map((c) => c.cmd)).toEqual(['wslview', 'powershell.exe', 'explorer.exe', 'xdg-open']);
+    expect(commands[2]).toMatchObject({ windowsFile: '/tmp/a.html', blind: true, args: [] });
     // run() puts the encoded command straight after the last argument.
     expect(commands[1]).toMatchObject({ startFile: '/tmp/a.html', orAt: expect.any(Function) });
     expect(commands[1]!.args.at(-1)).toBe('-EncodedCommand');
@@ -24,7 +25,7 @@ describe('browserCommands', () => {
   it('keeps a path PowerShell would expand or unquote away from wslview', () => {
     for (const file of ['/home/u/$(x)/a.html', '/home/u/a`b.html', "/home/u/it's.html", '/home/u/a"b.html']) {
       const commands = browserCommands(file, 'linux', true) as Opener[];
-      expect(commands.map((c) => c.cmd)).toEqual(['powershell.exe', 'xdg-open']);
+      expect(commands.map((c) => c.cmd)).toEqual(['powershell.exe', 'explorer.exe', 'xdg-open']);
     }
   });
 
@@ -49,6 +50,15 @@ describe('isWsl', () => {
   it('trusts the variables WSL sets', () => {
     expect(isWsl({ WSL_DISTRO_NAME: 'Ubuntu' })).toBe(true);
     expect(isWsl({ WSL_INTEROP: '/run/WSL/1_interop' })).toBe(true);
+  });
+
+  it('takes a WSL kernel for WSL only where the Windows interop is registered', () => {
+    const kernel = () => 'Linux version 5.15.167.4-microsoft-standard-WSL2';
+    expect(isWsl({}, kernel, (path) => path.endsWith('/WSLInterop'))).toBe(true);
+    expect(isWsl({}, kernel, (path) => path.endsWith('/WSLInterop-late'))).toBe(true);
+    // A Docker Desktop container.
+    expect(isWsl({}, kernel, () => false)).toBe(false);
+    expect(isWsl({}, () => 'Linux version 6.8.0-generic', () => true)).toBe(false);
   });
 });
 
@@ -76,6 +86,16 @@ describe('openWith', () => {
   it('finds an opener that is off the PATH at its known location', async () => {
     expect(await openWith([{ cmd: MISSING, orAt: () => NODE, args: ['-e', ''] }])).toBeNull();
     expect(await openWith([{ cmd: MISSING, orAt: () => `/${MISSING}`, args: [] }])).toBe(`${MISSING} not found`);
+  });
+
+  it('takes a blind opener as having opened once it has run, whatever it exits with', async () => {
+    expect(await openWith([{ ...exits(1), blind: true }])).toBeNull();
+    expect(await openWith([{ cmd: MISSING, args: [], blind: true }])).toBe(`${MISSING} not found`);
+  });
+
+  posix('hands a windowsFile opener the Windows path itself', async () => {
+    const check = `process.exit(process.argv[1] === 'W:\\\\a.html' ? 0 : 7)`;
+    expect(await openWith([{ cmd: NODE, args: ['-e', check], windowsFile: '/home/u/a.html' }], () => 'W:\\a.html')).toBeNull();
   });
 
   it('waits as long as the opener asks before taking it as handed off', async () => {
