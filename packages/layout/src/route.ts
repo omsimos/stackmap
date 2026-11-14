@@ -37,6 +37,15 @@ const SIDES: Side[] = ['right', 'bottom', 'left', 'top'];
 const MIXED_TONE = 300;
 /** Shortest straight run a nudge may leave at a port (arrowhead + gap). */
 const MIN_RUN = 12;
+/**
+ * Cost of running along the line of a port some other card's edge uses, or of taking a port on a line another edge
+ * already runs along: end to end, the two would draw as one line between cards that share no edge.
+ */
+const FACING = 600;
+/** How far past its stub a port keeps other edges off its line. */
+const PORT_CLEAR = 12;
+/** Closest a nudged run comes to a card, or a stretched port run to another edge on its line. */
+const NUDGE_CLEAR = 4;
 
 type Dir = 0 | 1 | 2 | 3; // right, down, left, up
 const DX = [1, 0, -1, 0];
@@ -185,6 +194,11 @@ interface Used {
   from: string;
   to: string;
 }
+/** A stretch of a line, along it. */
+interface Span {
+  lo: number;
+  hi: number;
+}
 /** Numeric key of an undirected grid step (point indexes stay far below 2^26). */
 const stepKey = (a: number, b: number) => (a < b ? a * 67108864 + b : b * 67108864 + a);
 /** Cost of touching a point another, unrelated edge already runs through (a crossing or a merge). */
@@ -227,6 +241,19 @@ export function routeEdges(
   const usedSteps = new Map<number, Used[]>();
   const usedPoints = new Map<number, Used[]>();
   const out: Record<string, Point[]> = {};
+  // Per line (`x…` for a vertical one, `y…` for a horizontal one): the stretch each claimed port keeps clear, and the
+  // stretches routes run along.
+  const portLines = new Map<string, (Span & { node: string; role: 'in' | 'out' })[]>();
+  const runLines = new Map<string, (Span & Used)[]>();
+  const lineKey = (vertical: boolean, at: number) => `${vertical ? 'x' : 'y'}${round(at)}`;
+  /** A port's run, and PORT_CLEAR past its stub, as a stretch of its line. */
+  const portSpan = (r: Rect, side: Side, slot: Slot) => {
+    const [p, q] = [portPoint(r, side, slot), stubPoint(r, side, slot)];
+    const d = SIDE_DIR[side];
+    const vertical = side === 'top' || side === 'bottom';
+    const [a, b] = vertical ? [p.y, q.y + DY[d]! * PORT_CLEAR] : [p.x, q.x + DX[d]! * PORT_CLEAR];
+    return { key: lineKey(vertical, vertical ? p.x : p.y), lo: Math.min(a, b), hi: Math.max(a, b) };
+  };
 
   // Who uses each port slot: edges may share one only in the same direction and tone (a trunk).
   // Two edges between the same two cards never share one (they would draw as one line with two labels).
@@ -237,7 +264,9 @@ export function routeEdges(
       SLOTS.map((slot) => {
         const use = slotUse.get(`${node}:${side}:${slot}`);
         const clash = !use ? 0 : use.role !== role ? OPPOSED : use.pairs.has(pair) || !use.tones.has(tone) ? MIXED_TONE : 0;
-        return { side, slot, cost: (listed.get(side) ?? ANY_SIDE) + Math.abs(slot) * SLOT_COST + clash };
+        const span = portSpan(nodes[node]!, side, slot);
+        const facing = runLines.get(span.key)?.some((u) => (role === 'out' ? u.from : u.to) !== node && span.lo < u.hi && u.lo < span.hi) ? FACING : 0;
+        return { side, slot, cost: (listed.get(side) ?? ANY_SIDE) + Math.abs(slot) * SLOT_COST + clash + facing };
       }),
     );
   };
@@ -247,6 +276,8 @@ export function routeEdges(
     use.tones.add(tone);
     use.pairs.add(pair);
     slotUse.set(key, use);
+    const { key: line, lo, hi } = portSpan(nodes[node]!, port.side, port.slot);
+    portLines.set(line, [...(portLines.get(line) ?? []), { lo, hi, node, role }]);
   };
 
   for (const req of requests) {
@@ -270,7 +301,16 @@ export function routeEdges(
     }
     // Fan-out from one card and fan-in to one card share a trunk on purpose; only unrelated edges pay.
     const unrelated = (list: Used[] | undefined) => !!list?.some((u) => u.from !== req.from && u.to !== req.to);
-    const extra = (a: number, b: number, len: number) => (unrelated(usedSteps.get(stepKey(a, b))) ? SHARED * len : 0) + (unrelated(usedPoints.get(b)) ? CROSS : 0);
+    // Edges that may use a port themselves (out of the same card, or into it) run along its line freely.
+    const facing = (a: number, b: number) => {
+      const [p, q] = [grid.pts[a]!, grid.pts[b]!];
+      const vertical = p.x === q.x;
+      const spans = portLines.get(lineKey(vertical, vertical ? p.x : p.y));
+      if (!spans) return 0;
+      const [lo, hi] = vertical ? [Math.min(p.y, q.y), Math.max(p.y, q.y)] : [Math.min(p.x, q.x), Math.max(p.x, q.x)];
+      return spans.some((u) => (u.role === 'out' ? req.from : req.to) !== u.node && lo < u.hi && u.lo < hi) ? FACING : 0;
+    };
+    const extra = (a: number, b: number, len: number) => (unrelated(usedSteps.get(stepKey(a, b))) ? SHARED * len : 0) + (unrelated(usedPoints.get(b)) ? CROSS : 0) + facing(a, b);
     // Search near the two cards first (most routes stay local); only a route that needs more room gets the grid.
     const box = { x0: Math.min(src.x, dst.x) - REGION, y0: Math.min(src.y, dst.y) - REGION, x1: Math.max(src.x + src.width, dst.x + dst.width) + REGION, y1: Math.max(src.y + src.height, dst.y + dst.height) + REGION };
     const path = search(grid, starts, goals, extra, box) ?? search(grid, starts, goals, extra);
@@ -288,7 +328,13 @@ export function routeEdges(
     const me = { from: req.from, to: req.to };
     gridPath.forEach((k, i) => {
       usedPoints.set(k, [...(usedPoints.get(k) ?? []), me]);
-      if (i) usedSteps.set(stepKey(gridPath[i - 1]!, k), [...(usedSteps.get(stepKey(gridPath[i - 1]!, k)) ?? []), me]);
+      if (!i) return;
+      usedSteps.set(stepKey(gridPath[i - 1]!, k), [...(usedSteps.get(stepKey(gridPath[i - 1]!, k)) ?? []), me]);
+      const [p, q] = [grid.pts[gridPath[i - 1]!]!, grid.pts[k]!];
+      const vertical = p.x === q.x;
+      const line = lineKey(vertical, vertical ? p.x : p.y);
+      const [lo, hi] = vertical ? [Math.min(p.y, q.y), Math.max(p.y, q.y)] : [Math.min(p.x, q.x), Math.max(p.x, q.x)];
+      runLines.set(line, [...(runLines.get(line) ?? []), { lo, hi, ...me }]);
     });
     out[req.id] = [portPoint(src, from.side, from.slot), ...gridPath.map((k) => grid.pts[k]!), portPoint(dst, to.side, to.slot)];
   }
@@ -396,9 +442,11 @@ interface Seg {
 /**
  * Spreads unrelated edges that run along the same line over parallel tracks, TRACK px apart. Segments of
  * edges that share a source or a target stay merged (a trunk). Segments on a port never move, and a move
- * never shortens a port's straight run below MIN_RUN, so edges still meet their cards square.
+ * never shortens a port's straight run below MIN_RUN, so edges still meet their cards square. A segment takes the
+ * nearest track that keeps it and the runs it stretches off the `cards`, and its port runs off other edges' lines;
+ * with none, it stays where it was routed.
  */
-export function nudge(routes: Record<string, Point[]>, ends: Record<string, { from: string; to: string }>): Record<string, Point[]> {
+export function nudge(routes: Record<string, Point[]>, ends: Record<string, { from: string; to: string }>, cards: Rect[] = []): Record<string, Point[]> {
   const out: Record<string, Point[]> = Object.fromEntries(Object.entries(routes).map(([k, v]) => [k, simplify(v).map((p) => ({ ...p }))]));
   for (const vertical of [true, false]) {
     const lines = new Map<number, Seg[]>();
@@ -420,17 +468,25 @@ export function nudge(routes: Record<string, Point[]>, ends: Record<string, { fr
       const overlap = (a: Seg, b: Seg) => Math.min(a.hi, b.hi) - Math.max(a.lo, b.lo) > 0.5;
       const mayShare = (a: Seg, b: Seg) => a.edge === b.edge || ((a.src === b.src) !== (a.dst === b.dst));
       const track = new Map<Seg, number>();
+      const axis = vertical ? 'x' : 'y';
+      const free = (seg: Seg, t: number) => !segs.some((o) => track.get(o) === t && overlap(o, seg) && !mayShare(o, seg));
+      const offset = (t: number) => (t % 2 ? 1 : -1) * Math.ceil(t / 2) * TRACK;
+      // Each segment moves as soon as it has its track, so the next one is checked against where things now are.
       for (const seg of segs) {
         let t = 0;
-        while (segs.some((o) => track.get(o) === t && overlap(o, seg) && !mayShare(o, seg))) t++;
-        track.set(seg, t);
-      }
-      for (const seg of segs) {
-        const t = track.get(seg)!;
+        while (!free(seg, t) || (t > 0 && !fits(out, ends, cards, seg, axis, offset(t)))) {
+          if (++t <= 2 * segs.length + 8) continue;
+          // No track fits: it holds the first free one, as a segment kept back by its port run does, and stays put.
+          t = 0;
+          while (!free(seg, t)) t++;
+          track.set(seg, t);
+          t = 0;
+          break;
+        }
+        if (!track.has(seg)) track.set(seg, t);
         if (!t) continue;
-        const off = (t % 2 ? 1 : -1) * Math.ceil(t / 2) * TRACK;
+        const off = offset(t);
         const pts = out[seg.edge]!;
-        const axis = vertical ? 'x' : 'y';
         // Moving a point next to a port stretches or shrinks that port's run; keep room for the arrowhead.
         const run = (j: number, port: number) => Math.abs(pts[j]![axis] + off - pts[port]![axis]);
         if ((seg.i === 1 && run(1, 0) < MIN_RUN) || (seg.i + 1 === pts.length - 2 && run(seg.i + 1, pts.length - 1) < MIN_RUN)) continue;
@@ -439,4 +495,38 @@ export function nudge(routes: Record<string, Point[]>, ends: Record<string, { fr
     }
   }
   return Object.fromEntries(Object.entries(out).map(([k, v]) => [k, simplify(v)]));
+}
+
+/**
+ * Whether a segment can move `off` along `axis`: the moved run keeps NUDGE_CLEAR off every card, the runs either side
+ * of it (which stretch or shrink with it) cross none, and a port run neither turns back into its card nor stretches
+ * onto a line some other card's edge runs along.
+ */
+function fits(routes: Record<string, Point[]>, ends: Record<string, { from: string; to: string }>, cards: Rect[], seg: Seg, axis: 'x' | 'y', off: number): boolean {
+  const pts = routes[seg.edge]!;
+  const [i, j] = [seg.i, seg.i + 1];
+  const [a, b] = [i, j].map((k) => ({ ...pts[k]!, [axis]: round(seg.at + off) })) as [Point, Point];
+  if (cards.some((r) => crosses(a, b, inflate(r, NUDGE_CLEAR)))) return false;
+  for (const [port, moved, at, role] of [
+    [pts[i - 1]!, a, i === 1, 'out'],
+    [pts[j + 1]!, b, j === pts.length - 2, 'in'],
+  ] as const) {
+    if (cards.some((r) => crosses(port, moved, r))) return false;
+    if (!at) continue;
+    const [was, now] = [seg.at - port[axis], moved[axis] - port[axis]];
+    if (Math.sign(now) !== Math.sign(was)) return false;
+    if (Math.abs(now) <= Math.abs(was)) continue;
+    // Stretched: nothing else on its line within reach, unless that edge may use this port too.
+    const other = axis === 'x' ? 'y' : 'x';
+    const [lo, hi] = [Math.min(port[axis], moved[axis]) - NUDGE_CLEAR, Math.max(port[axis], moved[axis]) + NUDGE_CLEAR];
+    const card = ends[seg.edge]![role === 'out' ? 'from' : 'to'];
+    for (const [id, q] of Object.entries(routes)) {
+      if (id === seg.edge || ends[id]![role === 'out' ? 'from' : 'to'] === card) continue;
+      for (let k = 1; k < q.length; k++) {
+        const [u, v] = [q[k - 1]!, q[k]!];
+        if (Math.abs(u[other] - port[other]) < 0.5 && Math.abs(v[other] - port[other]) < 0.5 && Math.min(u[axis], v[axis]) < hi && lo < Math.max(u[axis], v[axis])) return false;
+      }
+    }
+  }
+  return true;
 }
