@@ -121,13 +121,14 @@ describe('crowded lane layouts', () => {
   const next = generator(4, { nodes: 30, edges: 240 });
   const cases = Array.from({ length: 3 }, next);
 
-  it.each(cases.map((d, i) => [i, d] as const))('random diagram %i keeps every route off the cards', (_i, d) => {
+  it.each(cases.map((d, i) => [i, d] as const))('random diagram %i keeps every route off the cards and the port runs apart', (_i, d) => {
     const out = layoutLanes(d);
     for (const e of d.edges) {
       const pts = out.edges[e.id]!;
       for (let i = 1; i < pts.length; i++) expect(pts[i]!.x === pts[i - 1]!.x || pts[i]!.y === pts[i - 1]!.y, `${e.id} is orthogonal`).toBe(true);
     }
     expectOffCards(d, out);
+    expect(overlappingPortRuns(d, out)).toEqual([]);
   }, 30_000);
 });
 
