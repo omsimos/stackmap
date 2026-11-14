@@ -7,7 +7,7 @@ import ElkBundled from 'elkjs/lib/elk.bundled.js';
 import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api';
 import { cardSize, isLaneKind, measureText, round, usesCompactCards, type DiagramDraft, type DiagramGroup, type Direction, type LaidOutDiagram, type Point, type Rect } from '@stackmap/core';
 import { runChild, threadPort } from './elk-io';
-import { placeLabels } from './labels';
+import { boundsWithLabels, placeLabels } from './labels';
 import { layoutLanes } from './lanes';
 import { simplify } from './route';
 import { layoutSequence } from './sequence';
@@ -376,7 +376,7 @@ export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram
         if (spots.unseated === 0) break;
       }
     }
-    return { ...laid, labels: spots.labels };
+    return { ...laid, labels: spots.labels, bounds: boundsWithLabels(laid.bounds, draft.edges, spots.labels) };
   } finally {
     dispose();
   }

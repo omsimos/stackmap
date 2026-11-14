@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DiagramDraft, LaidOutDiagram, Point, Rect } from '@stackmap/core';
 import { layoutDiagram } from '../src/index';
+import { labelWidth } from '../src/labels';
 import { layoutLanes } from '../src/lanes';
 
 // Property test: random workflows and lifecycles (tones, returns, async, labels, tags, phases, groups, self-loops,
@@ -39,6 +40,16 @@ function generator(seed: number, dense?: { nodes: number; edges: number }) {
 const inside = (p: Point, r: Rect) => p.x > r.x + 0.5 && p.x < r.x + r.width - 0.5 && p.y > r.y + 0.5 && p.y < r.y + r.height - 0.5;
 const crosses = (a: Point, b: Point, r: Rect) =>
   Math.max(a.x, b.x) > r.x + 0.5 && Math.min(a.x, b.x) < r.x + r.width - 0.5 && Math.max(a.y, b.y) > r.y + 0.5 && Math.min(a.y, b.y) < r.y + r.height - 0.5;
+
+/** Every label's pill lies inside the bounds the viewer sizes and fits the diagram by. */
+function expectLabelsInside(d: DiagramDraft, out: LaidOutDiagram) {
+  for (const e of d.edges) {
+    const p = out.labels?.[e.id];
+    if (!p || !e.label) continue;
+    const half = labelWidth(e.label) / 2;
+    expect(p.x - half >= 0 && p.y - 10 >= 0 && p.x + half <= out.bounds.width && p.y + 10 <= out.bounds.height, `label ${e.id} inside the diagram`).toBe(true);
+  }
+}
 
 /** No segment of a route runs through a card, its own two aside where it leaves and arrives. */
 function expectOffCards(d: DiagramDraft, out: LaidOutDiagram) {
@@ -98,6 +109,7 @@ describe('lane layout properties', () => {
     // No point is both where an arrow arrives and where another edge leaves: that would read as two-way.
     expect([...ports].filter(([, roles]) => roles.size > 1).map(([k]) => k)).toEqual([]);
     for (const [id, p] of Object.entries(out.labels ?? {})) for (const [n, r] of Object.entries(out.nodes)) expect(inside(p, r), `label ${id} on ${n}`).toBe(false);
+    expectLabelsInside(d, out);
   });
 });
 
@@ -196,5 +208,6 @@ describe('ELK layout properties', () => {
     // One look per port, and never an arrival where another edge leaves.
     expect([...ports].filter(([, styles]) => styles.size > 1).map(([k]) => k)).toEqual([]);
     for (const [id, p] of Object.entries(out.labels ?? {})) for (const [n, r] of Object.entries(out.nodes)) expect(inside(p, r), `label ${id} on ${n}`).toBe(false);
+    expectLabelsInside(d, out);
   });
 });
