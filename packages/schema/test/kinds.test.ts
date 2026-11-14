@@ -73,6 +73,15 @@ describe('kind rules', () => {
     expect(codes(d)).toEqual(['error:semantics/card-section-for-kind@/nodes/0/card/rows', 'error:semantics/card-section-for-kind@/nodes/0/card/cta']);
   });
 
+  it('a self-loop on a compact card is not sent to a card row, which compact cards reject', () => {
+    const fixesFor = (d: unknown) => validateDiagram(d).diagnostics.find((x) => x.code === 'semantics/self-loop')!.allowedFixes;
+    const loop = { id: 'retry', from: 'build', to: 'build' };
+    expect(fixesFor(workflow({ edges: [{ id: 'e1', from: 'commit', to: 'build' }, loop] }))).toEqual(['remove the edge', 'describe the loop in an evidence note instead']);
+    const full = { kind: 'architecture', title: 'T', nodes: [{ id: 'build', type: 'service', card: { title: 'B' } }], edges: [loop] };
+    expect(fixesFor(full)).toEqual(['remove the edge', 'describe the loop in a card row instead']);
+    expect(fixesFor({ ...full, density: 'compact' })).toEqual(['remove the edge', 'describe the loop in an evidence note instead']);
+  });
+
   it('checks phase members, overlaps and order', () => {
     expect(codes(workflow({ phases: [{ id: 'p', label: 'P', edges: ['e1'] }] }))).toEqual(['error:semantics/phase-members@/phases/0/edges', 'error:semantics/phase-members@/phases/0']);
     expect(codes(workflow({ phases: [{ id: 'p', label: 'P', nodes: ['commit'] }, { id: 'q', label: 'Q', nodes: ['commit', 'build'] }] }))).toEqual([
@@ -105,6 +114,13 @@ describe('kind rules', () => {
       ],
     };
     expect(codes(d)).toEqual(['warning:semantics/phase-order@/edges/1']);
+    // "trace" is in no phase, so placing it is a way out.
+    expect(validateDiagram(d).diagnostics[0]!.allowedFixes).toContain('put "trace" in a phase');
+  });
+
+  it('does not suggest phasing the source of a phase-order edge that already has a phase', () => {
+    const d = workflow({ phases: [{ id: 'p', label: 'P', nodes: ['build'] }, { id: 'q', label: 'Q', nodes: ['commit'] }] });
+    expect(validateDiagram(d).diagnostics[0]!.allowedFixes).toEqual(['mark it "kind": "return" if it loops back on purpose', 'reorder the phases']);
   });
 
   it('warns when a lane group would frame a step that is not in it', () => {

@@ -5,6 +5,7 @@ import { NodeCard } from '../card/NodeCard';
 import { StepCard } from '../card/StepCard';
 import type { Emphasis, NodeEmphasis } from '../explore/emphasis';
 import { useExploreDispatch } from '../explore/ExploreContext';
+import { useViewerRoot } from '../explore/scope';
 import { neighbourInDirection, type Direction } from '../explore/graph';
 import { arrowMarkerId, ArrowMarkerDefs, edgeStroke, type EdgeColor } from './ArrowMarker';
 import type { Scene, SceneCard, SceneEdge, SceneFrame, SceneGap, SceneLane, ScenePhase } from './scene';
@@ -17,7 +18,8 @@ const NodeCardBody = memo(NodeCard);
 const StepCardBody = memo(StepCard);
 
 const ARROWS: Record<string, Direction> = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
-export const focusCard = (id: string) => document.querySelector<HTMLElement>(`.sm-card[data-card-id="${CSS.escape(id)}"]`)?.focus();
+export const focusCard = (id: string, within: ParentNode = document) =>
+  within.querySelector<HTMLElement>(`.sm-card[data-card-id="${CSS.escape(id)}"]`)?.focus();
 
 const place = ({ x, y, width, height }: { x: number; y: number; width: number; height: number }): CSSProperties => ({
   left: x,
@@ -163,13 +165,14 @@ const Card = memo(function Card({
   const { node, rect, final } = card;
   const dispatch = useExploreDispatch();
   const camera = useCamera();
+  const root = useViewerRoot();
   const accent = { '--sm-handle': `var(--sm-${node.type}-accent)` } as CSSProperties;
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.target !== e.currentTarget) return;
+    if (e.target !== e.currentTarget || e.metaKey || e.ctrlKey || e.altKey) return;
     const dir = ARROWS[e.key];
     if (dir) {
       const next = neighbourInDirection(rects, node.id, dir);
-      if (next) focusCard(next);
+      if (next) focusCard(next, root());
     } else if (e.key === 'Enter' || e.key === ' ') {
       dispatch({ type: 'select', id: node.id });
     } else if (e.key === 'Escape') {

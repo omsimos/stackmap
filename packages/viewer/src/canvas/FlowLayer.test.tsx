@@ -1,6 +1,9 @@
-import { render } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ExploreProvider } from '../explore/ExploreContext';
 import type { Flow } from '../motion/flow';
+import { useInFlight } from '../motion/inFlight';
+import { commerceApiLayout } from '../samples/commerce-api.layout';
 import { FlowLayer, playingClock, type FlowClock } from './FlowLayer';
 
 const flow: Flow = {
@@ -39,6 +42,38 @@ describe('FlowLayer', () => {
     expect(head.getAttribute('transform')).toMatch(/^translate\(75 0\)$/);
     draw(null);
     expect(pulse.style.visibility).toBe('hidden');
+  });
+});
+
+describe('FlowLayer, in flight', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('tells its own explorer which edges a pulse is on, and no other diagram on the page', () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (f: FrameRequestCallback) => frames.push(f));
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    const seen: Record<string, string[]> = {};
+    const Probe = ({ name }: { name: string }) => {
+      seen[name] = [...useInFlight()];
+      return null;
+    };
+    const { draft } = commerceApiLayout;
+    render(
+      <>
+        <ExploreProvider draft={draft} syncHash={false}>
+          <FlowLayer flow={flow} width={100} height={10} />
+          <Probe name="playing" />
+        </ExploreProvider>
+        <ExploreProvider draft={draft} syncHash={false}>
+          <Probe name="still" />
+        </ExploreProvider>
+      </>,
+    );
+    act(() => {
+      frames.shift()!(1000);
+      frames.shift()!(1100);
+    });
+    expect(seen).toEqual({ playing: ['ab'], still: [] });
   });
 });
 

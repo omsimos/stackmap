@@ -1,7 +1,8 @@
-import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type Dispatch, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState, type Dispatch, type ReactNode } from 'react';
 import type { DiagramDraft } from '@stackmap/core';
 import { emphasis, type Emphasis } from './emphasis';
 import { buildGraph, type Graph } from './graph';
+import { createInFlight, InFlightProvider } from '../motion/inFlight';
 import { explore, formatHash, INITIAL, parseHash, type ExploreAction, type ExploreState, type Known } from './state';
 
 export interface Explore {
@@ -77,9 +78,12 @@ export function ExploreProvider({
   }, [known, syncHash]);
 
   const value = useMemo(() => ({ draft, state, dispatch, graph, emphasis: em }), [draft, state, graph, em]);
+  const [inFlight] = useState(createInFlight);
   return (
     <DispatchContext.Provider value={dispatch}>
-      <ExploreContext.Provider value={value}>{children}</ExploreContext.Provider>
+      <InFlightProvider value={inFlight}>
+        <ExploreContext.Provider value={value}>{children}</ExploreContext.Provider>
+      </InFlightProvider>
     </DispatchContext.Provider>
   );
 }

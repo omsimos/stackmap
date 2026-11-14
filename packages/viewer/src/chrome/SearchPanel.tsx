@@ -3,6 +3,7 @@ import { TYPE_LABELS } from '@stackmap/core';
 import { searchMatches } from '../explore/emphasis';
 import { focusCard } from '../canvas/SceneLayers';
 import { useExplore } from '../explore/ExploreContext';
+import { useViewerRoot } from '../explore/scope';
 import { popIn } from '../motion/motion';
 import { useEnter } from '../motion/useEnter';
 import { PANEL_CLASS, PANEL_STYLE } from './ui';
@@ -12,6 +13,7 @@ const MAX_RESULTS = 8;
 /** `origin`: the trigger's centre, so the panel grows out of it; omitted, the panel just appears (keyboard `/`). */
 export function SearchPanel({ onClose, origin }: { onClose: () => void; origin?: string }) {
   const { draft, state, dispatch } = useExplore();
+  const root = useViewerRoot();
   const input = useRef<HTMLInputElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   useEnter(panel, (el) => popIn(el, origin!), !!origin);
@@ -25,7 +27,7 @@ export function SearchPanel({ onClose, origin }: { onClose: () => void; origin?:
   const choose = (id: string) => {
     dispatch({ type: 'select', id, reveal: true });
     dispatch({ type: 'search', query: null });
-    requestAnimationFrame(() => focusCard(id));
+    requestAnimationFrame(() => focusCard(id, root()));
   };
   return (
     <div ref={panel} className={`${PANEL_CLASS} absolute top-full left-0 z-20 mt-2 w-[320px] p-2`} style={PANEL_STYLE}>

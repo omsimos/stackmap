@@ -89,7 +89,7 @@ function Json({ title }: { title: string }) {
  * #how: four steps over one agent session. On a wide screen with motion it pins for 1.6 screens and the scroll
  * picks the step (step = ⌊progress × 4⌋); everywhere else it is its resting frame, the whole session and the map.
  */
-export function How({ demo, receipt, repair }: { demo: LaidOutDiagram; receipt: Receipt; repair: RepairRound }) {
+export function How({ demo, receipt, repair, ask }: { demo: LaidOutDiagram; receipt: Receipt; repair: RepairRound; ask: string }) {
   const pin = useRef<HTMLDivElement>(null);
   const stick = useRef<HTMLDivElement>(null);
   const fill = useRef<HTMLElement>(null);
@@ -98,7 +98,6 @@ export function How({ demo, receipt, repair }: { demo: LaidOutDiagram; receipt: 
   const [shown, setShown] = useState(0);
   const runway = useRef(0);
   const stickTop = useRef(0);
-  const arrived = useRef(false);
 
   useEffect(() => {
     const mm = gsap.matchMedia();
@@ -106,18 +105,14 @@ export function How({ demo, receipt, repair }: { demo: LaidOutDiagram; receipt: 
       const p = pin.current!;
       const s = stick.current!;
       const layout = () => {
-        runway.current = Math.round(innerHeight * 1.6);
+        // The runway is CSS (.how-pin::after), so the page is its final height before this runs and a hash or a
+        // restored scroll position lands where it stays.
+        runway.current = p.offsetHeight - s.offsetHeight;
         stickTop.current = Math.max(88, Math.round((innerHeight - s.offsetHeight) / 2 + 24));
-        p.style.height = `${s.offsetHeight + runway.current}px`;
         s.style.position = 'sticky';
         s.style.top = `${stickTop.current}px`;
       };
       layout();
-      // The runway arrives after the browser (or Next, from another page) has scrolled to the hash, pushing a
-      // target below it a runway further down: go there again.
-      const target = !arrived.current && location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1)));
-      arrived.current = true;
-      if (target && p.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING) target.scrollIntoView();
       setPinned(true);
       const draw = (progress: number) => {
         if (fill.current) fill.current.style.transform = `scaleX(${progress})`;
@@ -136,7 +131,6 @@ export function How({ demo, receipt, repair }: { demo: LaidOutDiagram; receipt: 
       draw(st.progress);
       return () => {
         st.kill();
-        p.style.height = '';
         s.style.position = '';
         s.style.top = '';
         if (fill.current) fill.current.style.transform = '';
@@ -194,7 +188,7 @@ export function How({ demo, receipt, repair }: { demo: LaidOutDiagram; receipt: 
                   <span className="ask-p" aria-hidden="true">
                     ›
                   </span>
-                  <span>Make an architecture diagram of this repository, backed by evidence from the code.</span>
+                  <span>{ask}</span>
                 </span>
                 <Tool s={1} at={0} verb="Write">
                   .stackmap/commerce-api/diagram.json

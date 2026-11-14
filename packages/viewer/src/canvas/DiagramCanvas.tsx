@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { LaidOutDiagram, Rect } from '@stackmap/core';
 import { ZoomBar } from '../chrome/ZoomBar';
 import { motionAllowed } from '../motion/motion';
@@ -77,10 +77,12 @@ const DOT = 1.2;
 function DotGrid({ x, y, k }: Transform) {
   const gap = GRID * k;
   const r = (DOT * k) / 2;
+  // Pattern ids are document-wide, and a page may embed several viewers.
+  const id = `sm-grid${useId().replace(/[^\w-]/g, '')}`;
   return (
     <svg aria-hidden="true" className="pointer-events-none absolute inset-0 size-full">
       <pattern
-        id="sm-grid"
+        id={id}
         patternUnits="userSpaceOnUse"
         x={x % gap}
         y={y % gap}
@@ -90,7 +92,7 @@ function DotGrid({ x, y, k }: Transform) {
       >
         <circle cx={r} cy={r} r={r} style={{ fill: 'var(--sm-grid)' }} />
       </pattern>
-      <rect width="100%" height="100%" fill="url(#sm-grid)" />
+      <rect width="100%" height="100%" fill={`url(#${id})`} />
     </svg>
   );
 }
@@ -148,8 +150,9 @@ export function DiagramCanvas({
   // M toggles the radar from anywhere but a text field or menu; not while presenting (it's hidden then).
   const chromeRef = useRef(chrome);
   chromeRef.current = chrome;
-  const playableRef = useRef(false);
-  playableRef.current = state.playing || hasFlow(state, emphasis);
+  // Read when P is pressed: this renders on every pan and zoom frame, and hasFlow walks every edge.
+  const shown = useRef({ state, emphasis });
+  shown.current = { state, emphasis };
   // P plays or stops the flow, presenting too; with reduced motion, or nothing shown to play, it does nothing.
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
@@ -158,7 +161,7 @@ export function DiagramCanvas({
       const t = e.target as HTMLElement | null;
       if (e.metaKey || e.ctrlKey || e.altKey || e.repeat || inMenu(t) || (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))) return;
       if (key === 'm' && (!chromeRef.current || !withMinimap)) return;
-      if (key === 'p' && (!motionAllowed() || !playableRef.current)) return;
+      if (key === 'p' && (!motionAllowed() || !(shown.current.state.playing || hasFlow(shown.current.state, shown.current.emphasis)))) return;
       e.preventDefault();
       if (key === 'm') setMinimap((v) => !v);
       else dispatch({ type: 'togglePlay' });
@@ -166,12 +169,14 @@ export function DiagramCanvas({
     addEventListener('keydown', onKey);
     return () => removeEventListener('keydown', onKey);
   }, [dispatch, inScope, withMinimap]);
-  const flow = useFlow(scene);
   const playing = state.playing && motionAllowed();
+  const flow = useFlow(scene, playing);
   useSceneReveal(sceneRef, scene, viewport.restored);
 
   // Keys when the stage itself has focus (cards handle their own and stop propagation).
   const onKeyDown = (e: KeyboardEvent) => {
+    // ⌘/Ctrl with + - 0 is the browser's own zoom, Alt/⌘ with an arrow its history.
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
     const pan: Record<string, [number, number]> = {
       ArrowUp: [0, PAN_STEP],
       ArrowDown: [0, -PAN_STEP],

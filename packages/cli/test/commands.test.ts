@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -89,6 +89,19 @@ describe('deliver', () => {
     expect(lines).toEqual(['laying out 61 nodes and 60 connections; a diagram this size can take a while']);
   }, 30_000);
 
+  it('gives no slow-layout notice for kinds that never reach the slow layout', async () => {
+    const lines: string[] = [];
+    const nodes = Array.from({ length: 61 }, (_, i) => ({ id: `n${i}`, type: 'service', lane: 'a', card: { title: `n${i}` } }));
+    const edges = nodes.slice(1).map((n, i) => ({ id: `e${i}`, from: `n${i}`, to: n.id }));
+    const workflow = { kind: 'workflow', title: 'Steps', lanes: [{ id: 'a', label: 'A' }], nodes, edges };
+    const sequence = { kind: 'sequence', title: 'Calls', nodes: nodes.map(({ lane: _lane, ...n }) => n), edges };
+    for (const [name, d] of Object.entries({ workflow, sequence })) {
+      const r = await deliverCommand(file(`${name}.json`, d), { template: TEMPLATE, progress: (l) => lines.push(l) });
+      expect(r.code).toBe(0);
+    }
+    expect(lines).toEqual([]);
+  });
+
   it('opens nothing when validation fails', async () => {
     let opened = false;
     const r = await deliverCommand(file('broken.json', broken), { template: TEMPLATE, open: async () => ((opened = true), null) });
@@ -144,6 +157,16 @@ describe('deliver', () => {
       expect(r.code).toBe(2);
       expect(r.stderr).toMatch(/^stackmap: refusing to overwrite the input/);
     }
+    expect(JSON.parse(readFileSync(json, 'utf8'))).toEqual(commerceApi);
+  });
+
+  it('refuses an output that names its input in another case, where the filesystem ignores case', async () => {
+    const json = file('case.json', commerceApi);
+    const upper = join(dir, 'CASE.JSON');
+    if (!existsSync(upper)) return; // a case-sensitive filesystem: that is a different file
+    const r = await deliverCommand(json, { template: TEMPLATE, out: upper });
+    expect(r.code).toBe(2);
+    expect(r.stderr).toMatch(/^stackmap: refusing to overwrite the input/);
     expect(JSON.parse(readFileSync(json, 'utf8'))).toEqual(commerceApi);
   });
 

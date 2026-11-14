@@ -124,6 +124,18 @@ describe('validateDiagram', () => {
       });
     });
 
+    it('a number out of range gets a number fix, not a text one', () => {
+      const withLine = (line: number) => base({ nodes: [node('a', { evidence: [{ file: 'a.ts', line }] }), node('b')] });
+      expect(diags(withLine(0))[0]).toMatchObject({ code: 'schema/too_small', subject: '/nodes/0/evidence/0/line', allowedFixes: ['make "line" greater than 0'] });
+    });
+
+    it('an unknown key named like an Object.prototype member is just removed', () => {
+      for (const key of ['constructor', 'toString', 'hasOwnProperty']) {
+        const [d] = diags(base({ nodes: [node('a', { [key]: 1 } as never), node('b')] }));
+        expect(d).toMatchObject({ code: 'schema/unrecognized_keys', subject: '/nodes/0', allowedFixes: [expect.stringMatching(new RegExp(`^remove "${key}" \\(not valid here`))] });
+      }
+    });
+
     it('limits say how far to cut', () => {
       const stats = Array.from({ length: 4 }, (_, i) => ({ value: String(i), label: 'x' }));
       expect(diags(base({ nodes: [node('a', { card: { title: 'a', stats } })] }))[0]).toMatchObject({
@@ -234,6 +246,15 @@ describe('validateDiagram', () => {
       expect(only(base({ nodes: [node('a', { card: { title: 'a', statsNote: 'links' } }), node('b')] }), 'semantics/hidden-stats-note')).toMatchObject([
         { severity: 'warning', subject: '/nodes/0/card/statsNote' },
       ]);
+    });
+
+    it('an empty footer is a warning (it draws a blank band)', () => {
+      expect(only(base({ nodes: [node('a', { card: { title: 'a', footer: {} } }), node('b')] }), 'semantics/empty-footer')).toMatchObject([
+        { severity: 'warning', subject: '/nodes/0/card/footer', allowedFixes: ['add "left" or "right"', 'remove "footer"'] },
+      ]);
+      expect(only(base({ nodes: [node('a', { card: { title: 'a', footer: { right: { text: 'eu' } } } }), node('b')] }), 'semantics/empty-footer')).toEqual([]);
+      // Compact cards already reject the footer outright.
+      expect(only(base({ density: 'compact', nodes: [node('a', { card: { title: 'a', footer: {} } }), node('b')] }), 'semantics/empty-footer')).toEqual([]);
     });
 
     it('a duplicate id rename suggestion is itself unused', () => {

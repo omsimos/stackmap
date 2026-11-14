@@ -1,4 +1,4 @@
-import type { DiagramDraft } from '@stackmap/core';
+import { usesCompactCards, type DiagramDraft } from '@stackmap/core';
 import type { Diagnostic } from '../diagnostics';
 
 function duplicates(items: { id: string }[] | undefined, collection: string): Diagnostic[] {
@@ -103,6 +103,16 @@ export function semanticsDiagnostics(d: DiagramDraft): Diagnostic[] {
         evidence: { id: n.id },
         allowedFixes: ['add "stats"', 'remove "statsNote"', 'move the note into a card row'],
       });
+    // The card reserves the footer band whether or not anything is in it.
+    if (n.card.footer && !n.card.footer.left && !n.card.footer.right && !usesCompactCards(d))
+      out.push({
+        code: 'semantics/empty-footer',
+        severity: 'warning',
+        subject: `/nodes/${i}/card/footer`,
+        message: `The footer on "${n.id}" is empty: it draws a blank band`,
+        evidence: { id: n.id },
+        allowedFixes: ['add "left" or "right"', 'remove "footer"'],
+      });
   });
 
   // The authoring contract aims for ~10–40 nodes; well past that cards are unreadable at fit, and a grouped
@@ -141,7 +151,8 @@ export function semanticsDiagnostics(d: DiagramDraft): Diagnostic[] {
         subject: `/edges/${i}`,
         message: `Edge "${e.id}" connects "${e.from}" to itself`,
         evidence: { id: e.id, node: e.from },
-        allowedFixes: ['remove the edge', 'describe the loop in a card row instead'],
+        // Compact cards have no rows: that fix would trade this warning for an error.
+        allowedFixes: ['remove the edge', `describe the loop in ${usesCompactCards(d) ? 'an evidence note' : 'a card row'} instead`],
       });
   });
 

@@ -213,13 +213,14 @@ function phaseDiagnostics(d: DiagramDraft): Diagnostic[] {
     // edge; say so, it's usually a mistake.
     const back = phaseViolations(d);
     d.edges.forEach((e, i) => {
-      if (!back.has(e.id)) return;
-      const into = d.phases![owner.get(e.to)!]!.id;
+      const phase = back.get(e.id);
+      if (phase === undefined) return;
+      const into = d.phases![phase]!.id;
       out.push({
         ...error('semantics/phase-order', `/edges/${i}`, `Edge "${e.id}" leads back into phase "${into}" from a later phase`, { id: e.id, phase: into }, [
           'mark it "kind": "return" if it loops back on purpose',
           'reorder the phases',
-          `put "${e.from}" in a phase`,
+          ...(owner.has(e.from) ? [] : [`put "${e.from}" in a phase`]),
         ]),
         severity: 'warning',
       });

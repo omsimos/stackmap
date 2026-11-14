@@ -257,3 +257,182 @@ test('on a phone the nav menu opens the site links and closes on Escape', async 
   await expect(page.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'false');
   await page.close();
 });
+
+test('with the walkthrough pinned, a hash lands on its section, a reload keeps its place and a broken hash is harmless', async ({ browser }) => {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'no-preference' });
+  const errors = collectErrors(page);
+  const top = (id: string) => page.evaluate((id) => Math.abs(document.getElementById(id)!.getBoundingClientRect().top), id);
+  await page.goto('/#50%');
+  await expect(page.locator('.how-pin')).toHaveAttribute('data-live', 'true');
+  expect(errors).toEqual([]);
+  // Arrivals below are immediate; once the page has loaded, moves within it glide.
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior)).toBe('smooth');
+  // From another page, loaded and then through the router: both end below the runway, on the section.
+  await page.goto('/docs');
+  await page.goto('/#install');
+  await expect.poll(() => top('install')).toBeLessThan(140);
+  await page.goto('/docs');
+  await page.getByRole('link', { name: 'Install', exact: true }).first().click();
+  await expect(page).toHaveURL(/\/#install$/);
+  await expect.poll(() => top('install')).toBeLessThan(140);
+  // The address still names #install, but the reader has moved on: a reload restores where they were.
+  await page.evaluate(() => scrollTo({ top: 300, behavior: 'instant' }));
+  await page.waitForTimeout(300);
+  await page.reload();
+  await expect(page.locator('.how-pin')).toHaveAttribute('data-live', 'true');
+  expect(Math.abs((await page.evaluate(() => scrollY)) - 300)).toBeLessThan(60);
+  await page.close();
+});
+
+test('a reload part-way down the landing never blanks what is already on screen', async ({ browser }) => {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'no-preference' });
+  // The lowest opacity any reveal on screen ever has, sampled every frame from before the page's own script.
+  await page.addInitScript(() => {
+    const w = window as unknown as { lowest: number };
+    w.lowest = 1;
+    const tick = () => {
+      for (const el of document.querySelectorAll('[data-reveal]')) {
+        const r = el.getBoundingClientRect();
+        const s = getComputedStyle(el);
+        if (r.bottom > 0 && r.top < innerHeight * 0.9) w.lowest = Math.min(w.lowest, s.visibility === 'hidden' ? 0 : Number(s.opacity));
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  await page.goto('/');
+  await expect(page.locator('.how-pin')).toHaveAttribute('data-live', 'true');
+  await page.evaluate(() => scrollTo({ top: document.getElementById('how')!.getBoundingClientRect().top + scrollY - 100, behavior: 'instant' }));
+  await page.waitForTimeout(1200);
+  await page.reload();
+  await expect(page.locator('.how-pin')).toHaveAttribute('data-live', 'true');
+  await page.waitForTimeout(800);
+  expect(await page.evaluate(() => scrollY)).toBeGreaterThan(500);
+  expect(await page.evaluate(() => (window as unknown as { lowest: number }).lowest)).toBe(1);
+  await page.close();
+});
+
+test('pointing at an edge in a linked figure’s JSON lights its line', async ({ page }) => {
+  await page.goto('/docs');
+  const line = page.locator('.lf .cl[data-o^="edge:"]').first();
+  const id = (await line.getAttribute('data-o'))!.slice('edge:'.length);
+  const path = page.locator(`.lf path[data-edge-id="${id}"]`);
+  const before = await path.evaluate((p) => getComputedStyle(p).stroke);
+  await line.hover();
+  await expect(page.locator('.lf[data-linking]')).toHaveCount(1);
+  await expect.poll(() => path.evaluate((p) => getComputedStyle(p).stroke)).not.toBe(before);
+});
+
+test('the docs search loads its index again after a failed fetch', async ({ page }) => {
+  let fail = true;
+  await page.route('**/search.json', (r) => (fail ? r.abort() : r.continue()));
+  await page.goto('/docs');
+  const box = page.getByRole('combobox', { name: 'Search the docs' });
+  await expect(async () => {
+    await page.keyboard.press('ControlOrMeta+k');
+    await expect(box).toBeFocused({ timeout: 500 });
+  }).toPass();
+  await box.fill('serve');
+  await expect(page.getByRole('option')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(box).toHaveCount(0);
+  fail = false;
+  await page.keyboard.press('ControlOrMeta+k');
+  await box.fill('serve');
+  await expect(page.getByRole('option').first()).toBeVisible();
+});
+
+test('the hero viewer starts its flow only once it is on screen', async ({ browser }) => {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'no-preference' });
+  await page.goto('/#install');
+  const play = page.getByRole('group', { name: 'Try the viewer' }).getByRole('button', { name: /Play/ });
+  // Past the 1.1 s the flow waits for the intro.
+  await page.waitForTimeout(2200);
+  expect(await page.evaluate(() => scrollY)).toBeGreaterThan(900);
+  await expect(play).toHaveAttribute('aria-pressed', 'false');
+  await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
+  await expect(play).toHaveAttribute('aria-pressed', 'true');
+  await page.close();
+});
+
+test('the gallery’s filter follows the address when the nav link drops ?kind=', async ({ page }) => {
+  await page.goto('/examples?kind=workflow');
+  const kinds = page.getByRole('group', { name: 'Filter by kind' });
+  await expect(kinds.getByRole('button', { name: /Workflow/ })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('navigation', { name: 'Site', exact: true }).getByRole('link', { name: 'Examples' }).click();
+  await expect(page).toHaveURL(/\/examples$/);
+  await expect(kinds.getByRole('button', { name: /^All/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.ex-li:visible')).toHaveCount(16);
+});
+
+test('on a phone the docs sheet marks the section in view', async ({ browser }) => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+  await page.goto('/docs');
+  const open = page.locator('.d-bar-m');
+  await expect(async () => {
+    await open.click();
+    await expect(open).toHaveAttribute('aria-expanded', 'true', { timeout: 500 });
+  }).toPass();
+  const bar = page.locator('#docs-sheet .d-sub-ind');
+  await expect.poll(() => bar.evaluate((el) => el.getBoundingClientRect().height)).toBeGreaterThan(10);
+  await expect(bar).toHaveCSS('opacity', '1');
+  await page.close();
+});
+
+test('the try bar stops describing Play once the flow stops or another mode starts', async ({ browser }) => {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'no-preference' });
+  await page.goto('/');
+  const play = page.getByRole('group', { name: 'Try the viewer' }).getByRole('button', { name: /Play/ });
+  const says = page.locator('.try-d');
+  // The flow starts by itself after the intro; the reader stops it.
+  await expect(play).toHaveAttribute('aria-pressed', 'true');
+  await play.click();
+  await expect(play).toHaveAttribute('aria-pressed', 'false');
+  await expect(says).toHaveText(/This is the real viewer/);
+  await play.click();
+  await expect(says).toHaveText(/Pulses travel/);
+  await page.locator('.ev .sm-card[data-card-id="orders"]').click();
+  await expect(says).toHaveText(/Select a card/);
+  await page.close();
+});
+
+test('the docs search keeps its keys after a press on the panel, and ⌘K closes it back to where focus was', async ({ page }) => {
+  await page.goto('/docs');
+  const from = page.getByRole('navigation', { name: 'Documentation' }).first().getByRole('button', { name: /Search docs/ });
+  const box = page.getByRole('combobox', { name: 'Search the docs' });
+  await expect(async () => {
+    await from.focus();
+    await page.keyboard.press('ControlOrMeta+k');
+    await expect(box).toBeFocused({ timeout: 500 });
+  }).toPass();
+  await expect(page.getByRole('option').first()).toBeVisible();
+  await page.locator('.pal-f').click({ position: { x: 5, y: 5 } });
+  await page.locator('.pal-h').first().click();
+  await expect(box).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(box).toHaveCount(0);
+  await expect(from).toBeFocused();
+  await page.keyboard.press('ControlOrMeta+k');
+  await expect(box).toBeFocused();
+  await page.keyboard.press('ControlOrMeta+k');
+  await expect(box).toHaveCount(0);
+  await expect(from).toBeFocused();
+});
+
+test('pointing at a card or a group’s frame in a linked figure lights its JSON', async ({ page }) => {
+  await page.goto('/docs');
+  const fig = page.locator('.lf').first();
+  const card = fig.locator('.lf-stage [data-card-id]').first();
+  const frame = fig.locator('.lf-stage [data-frame-id]').first();
+  await card.scrollIntoViewIfNeeded();
+  // The drawing is inert, so the figure reads the pointer's position: move the mouse, there is nothing to hover.
+  const at = async (el: typeof card, dx?: number, dy?: number) => {
+    const r = (await el.boundingBox())!;
+    await page.mouse.move(r.x + (dx ?? r.width / 2), r.y + (dy ?? r.height / 2));
+  };
+  await at(card);
+  await expect(fig.locator('.cl.hl').first()).toHaveAttribute('data-o', `node:${await card.getAttribute('data-card-id')}`);
+  // A frame's corner has no card under it.
+  await at(frame, 3, 3);
+  await expect(fig.locator('.cl.hl').first()).toHaveAttribute('data-o', `group:${await frame.getAttribute('data-frame-id')}`);
+});

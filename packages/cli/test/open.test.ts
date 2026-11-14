@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { browserCommands, isWsl, openWith, startCommand } from '../src/open';
+import { browserCommands, isWsl, openWith, startCommand, type Opener } from '../src/open';
 
 const NODE = process.execPath;
 const MISSING = 'stackmap-no-such-opener';
 const exits = (code: number) => ({ cmd: NODE, args: ['-e', `process.exit(${code})`] });
+// A Windows host has no signal exit status, and its path.resolve puts a drive on a POSIX path.
+const posix = it.skipIf(process.platform === 'win32');
 
 describe('browserCommands', () => {
   it('uses the native opener on darwin and linux', () => {
@@ -12,8 +14,18 @@ describe('browserCommands', () => {
   });
 
   it('tries the Windows side first on WSL, and xdg-open last', () => {
-    const commands = browserCommands('/tmp/a.html', 'linux', true);
-    expect(Array.isArray(commands) && commands.map((c) => c.cmd)).toEqual(['wslview', 'powershell.exe', 'xdg-open']);
+    const commands = browserCommands('/tmp/a.html', 'linux', true) as Opener[];
+    expect(commands.map((c) => c.cmd)).toEqual(['wslview', 'powershell.exe', 'xdg-open']);
+    // run() puts the encoded command straight after the last argument.
+    expect(commands[1]).toMatchObject({ startFile: '/tmp/a.html', orAt: expect.any(Function) });
+    expect(commands[1]!.args.at(-1)).toBe('-EncodedCommand');
+  });
+
+  it('keeps a path PowerShell would expand or unquote away from wslview', () => {
+    for (const file of ['/home/u/$(x)/a.html', '/home/u/a`b.html', "/home/u/it's.html", '/home/u/a"b.html']) {
+      const commands = browserCommands(file, 'linux', true) as Opener[];
+      expect(commands.map((c) => c.cmd)).toEqual(['powershell.exe', 'xdg-open']);
+    }
   });
 
   it('quotes the path for cmd on win32', () => {
@@ -56,17 +68,23 @@ describe('openWith', () => {
     expect(await openWith([{ cmd: MISSING, args: [] }, exits(1)])).toBe(`${MISSING} not found; ${NODE} exited with 1`);
   });
 
-  it('takes an opener killed by a signal as failed', async () => {
+  posix('takes an opener killed by a signal as failed', async () => {
     const killed = { cmd: NODE, args: ['-e', "process.kill(process.pid, 'SIGKILL')"] };
     expect(await openWith([killed])).toBe(`${NODE} was killed by SIGKILL`);
   });
 
   it('finds an opener that is off the PATH at its known location', async () => {
-    expect(await openWith([{ cmd: MISSING, orAt: NODE, args: ['-e', ''] }])).toBeNull();
-    expect(await openWith([{ cmd: MISSING, orAt: `/${MISSING}`, args: [] }])).toBe(`${MISSING} not found`);
+    expect(await openWith([{ cmd: MISSING, orAt: () => NODE, args: ['-e', ''] }])).toBeNull();
+    expect(await openWith([{ cmd: MISSING, orAt: () => `/${MISSING}`, args: [] }])).toBe(`${MISSING} not found`);
   });
 
-  it('hands PowerShell the Windows path of the file as an encoded command', async () => {
+  it('waits as long as the opener asks before taking it as handed off', async () => {
+    const slow = { cmd: NODE, args: ['-e', 'setTimeout(() => process.exit(1), 1000)'] };
+    expect(await openWith([{ ...slow, wait: 100 }])).toBeNull();
+    expect(await openWith([{ ...slow, wait: 30000 }])).toBe(`${NODE} exited with 1`);
+  });
+
+  posix('hands PowerShell the Windows path of the file as an encoded command', async () => {
     const want = "Start-Process -FilePath '\\\\wsl.localhost\\Ubuntu\\home\\u\\it''s.html'";
     // The child exits 0 only when the argument after its own decodes to the command.
     const check = `process.exit(Buffer.from(process.argv[1], 'base64').toString('utf16le') === ${JSON.stringify(want)} ? 0 : 7)`;

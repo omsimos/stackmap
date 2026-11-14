@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { commerceApi } from '@stackmap/core/samples';
 import { EMPTY_DATA_BLOCK } from '../src/embed';
-import { LIVE_BLOCK_ID, serve, type ServeHandle } from '../src/serve';
+import { CliError } from '../src/io';
+import { isLocalHost, LIVE_BLOCK_ID, serve, type ServeHandle } from '../src/serve';
 
 const TEMPLATE = `<!doctype html><html><head><title>stackmap</title></head><body><div id="root"></div>${EMPTY_DATA_BLOCK}</body></html>`;
 let dir: string;
@@ -96,6 +97,23 @@ describe('serve', () => {
     expect(await raw(server.url, 'HEAD')).toBe(200);
   });
 
+  it('accepts a Host without a port only on port 80, where clients leave it out', () => {
+    expect(isLocalHost('127.0.0.1', 80)).toBe(true);
+    expect(isLocalHost('localhost', 80)).toBe(true);
+    expect(isLocalHost('localhost:80', 80)).toBe(true);
+    expect(isLocalHost('localhost', 4400)).toBe(false);
+    expect(isLocalHost('evil.example', 80)).toBe(false);
+    expect(isLocalHost(undefined, 80)).toBe(false);
+  });
+
+  it('answers a path that is not a valid URL instead of crashing', async () => {
+    write(commerceApi);
+    server = await serve(file, { template: TEMPLATE, port: 0 });
+    expect(await raw(`${server.url}//`, 'GET')).toBe(404);
+    expect(await raw(`${server.url}/?x=1`, 'GET')).toBe(200);
+    expect(await raw(server.url, 'GET')).toBe(200);
+  });
+
   it('stamps the page and every diagnostics event with the build id, so a stale page can tell', async () => {
     write(commerceApi);
     server = await serve(file, { template: TEMPLATE, port: 0 });
@@ -157,6 +175,32 @@ describe('serve', () => {
     await sse.next(isReload);
     expect(titleOf(await page(server.url))).toBe('Back again · stackmap');
     await sse.close();
+  });
+
+  it('picks up an edit saved while the first layout is still running', async () => {
+    write(commerceApi);
+    const starting = serve(file, { template: TEMPLATE, port: 0 });
+    // serve has read the file and is awaiting its layout.
+    write(withTitle('Edited early'));
+    server = await starting;
+    await expect.poll(async () => titleOf(await page(server!.url)), { timeout: 8000 }).toBe('Edited early · stackmap');
+  });
+
+  it('says a large layout is under way before it finishes', async () => {
+    const nodes = Array.from({ length: 61 }, (_, i) => ({ id: `n${i}`, type: 'service', card: { title: `n${i}` } }));
+    const edges = nodes.slice(1).map((n, i) => ({ id: `e${i}`, from: `n${i}`, to: n.id }));
+    write({ kind: 'architecture', title: 'Big', nodes, edges });
+    const lines: string[] = [];
+    server = await serve(file, { template: TEMPLATE, port: 0, log: (l) => lines.push(l) });
+    expect(lines).toEqual(['laying out 61 nodes and 60 connections; a diagram this size can take a while', '✓ d.json ready']);
+  });
+
+  it('fails with a plain message, and builds nothing, when the folder to watch is missing', async () => {
+    const lines: string[] = [];
+    const starting = serve(join(dir, 'nope', 'x.json'), { template: TEMPLATE, port: 0, log: (l) => lines.push(l) });
+    await expect(starting).rejects.toThrow(CliError);
+    await expect(starting).rejects.toThrow(/^cannot watch .+nope: ENOENT$/);
+    expect(lines).toEqual([]);
   });
 
   it('starts on an invalid file with the bare live template', async () => {

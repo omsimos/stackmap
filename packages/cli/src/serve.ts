@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { watch, type FSWatcher } from 'node:fs';
+import { readFileSync, watch, type FSWatcher } from 'node:fs';
 import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { basename, dirname } from 'node:path';
@@ -40,6 +40,13 @@ const diagnostic = (code: string, message: string, fix: string, path: string): D
   evidence: { path },
   allowedFixes: [fix],
 });
+
+/** DNS rebinding: a foreign page resolving its own name to 127.0.0.1 would send its own Host. */
+export function isLocalHost(host: string | undefined, port: number): boolean {
+  // Clients leave the port out of Host when it is http's default.
+  const suffixes = port === 80 ? [':80', ''] : [`:${port}`];
+  return suffixes.some((s) => host === `127.0.0.1${s}` || host === `localhost${s}`);
+}
 
 function listen(server: ReturnType<typeof createServer>, port: number): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -93,9 +100,19 @@ export async function serve(path: string, { template, port = 4400, log = () => {
   };
 
   let built = false;
-  const rebuild = async () => {
+  // What the last build read: the watcher also reports saves that change nothing, and a write from just before it started.
+  let source = '';
+  const fingerprint = () => {
     try {
-      const result = await buildHtml(path, template);
+      return createHash('sha256').update(readFileSync(path)).digest('hex');
+    } catch {
+      return '';
+    }
+  };
+  const rebuild = async () => {
+    source = fingerprint();
+    try {
+      const result = await buildHtml(path, template, log);
       publish({ ok: result.ok, diagnostics: result.diagnostics }, result.html);
     } catch (e) {
       const unreadable = e instanceof CliError;
@@ -110,21 +127,54 @@ export async function serve(path: string, { template, port = 4400, log = () => {
     }
   };
 
-  await rebuild();
+  // One rebuild waits behind the running one however many saves arrive: only the latest content matters.
+  let queued = false;
+  let running = Promise.resolve();
+  const schedule = () => {
+    if (queued) return;
+    queued = true;
+    running = running
+      .then(() => {
+        queued = false;
+        if (fingerprint() !== source) return rebuild();
+      })
+      .catch((e: unknown) => log(`✗ rebuild failed: ${(e as Error).message}`));
+  };
+
+  // Editors save by writing a temp file and renaming it over the original, so watch the directory.
+  // Watching starts before the first build, so a save during that layout is not lost.
+  let timer: NodeJS.Timeout | undefined;
+  let watcher: FSWatcher;
+  try {
+    watcher = watch(dirname(path), (_event, name) => {
+      if (name !== null && name !== basename(path)) return;
+      clearTimeout(timer);
+      timer = setTimeout(schedule, DEBOUNCE_MS);
+    });
+  } catch (e) {
+    throw new CliError(`cannot watch ${dirname(path)}: ${(e as NodeJS.ErrnoException).code ?? (e as Error).message}`);
+  }
+  // e.g. the directory was deleted (EPERM on Windows): report it instead of crashing the server.
+  watcher.on('error', (e) =>
+    publish({ ok: false, diagnostics: [diagnostic('io/watch-failed', `stopped watching: ${e.message}`, 'restart stackmap serve', path)] }),
+  );
+
+  running = rebuild();
+  await running;
 
   let bound = 0;
   const server = createServer((req, res) => {
-    // DNS rebinding: a foreign page resolving its own name to 127.0.0.1 would send its own Host.
-    if (req.headers.host !== `127.0.0.1:${bound}` && req.headers.host !== `localhost:${bound}`) {
+    if (!isLocalHost(req.headers.host, bound)) {
       res.writeHead(403, { 'content-type': 'text/plain' });
       return void res.end('forbidden host');
     }
-    const url = new URL(req.url ?? '/', 'http://localhost');
+    // Not `new URL`: it throws on a path like `//`, and any page in the user's browser can send one.
+    const pathname = (req.url ?? '/').split('?', 1)[0];
     const read = req.method === 'GET' || req.method === 'HEAD';
-    if (read && url.pathname === '/') {
+    if (read && pathname === '/') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
       res.end(req.method === 'HEAD' ? undefined : page);
-    } else if (req.method === 'GET' && url.pathname === '/events') {
+    } else if (req.method === 'GET' && pathname === '/events') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
       res.write('retry: 1000\n\n');
       send(res, 'diagnostics', JSON.stringify(state));
@@ -136,23 +186,10 @@ export async function serve(path: string, { template, port = 4400, log = () => {
     }
   });
 
-  // Editors save by writing a temp file and renaming it over the original, so watch the directory.
-  let timer: NodeJS.Timeout | undefined;
-  let running = Promise.resolve();
-  const watcher: FSWatcher = watch(dirname(path), (_event, name) => {
-    if (name !== null && name !== basename(path)) return;
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      running = running.then(rebuild).catch((e: unknown) => log(`✗ rebuild failed: ${(e as Error).message}`));
-    }, DEBOUNCE_MS);
-  });
-  // e.g. the directory was deleted (EPERM on Windows): report it instead of crashing the server.
-  watcher.on('error', (e) =>
-    publish({ ok: false, diagnostics: [diagnostic('io/watch-failed', `stopped watching: ${e.message}`, 'restart stackmap serve', path)] }),
-  );
   const keepAlive = setInterval(() => clients.forEach((res) => res.write(': ping\n\n')), 15_000);
 
   bound = await listen(server, port).catch((e) => {
+    clearTimeout(timer);
     watcher.close();
     clearInterval(keepAlive);
     throw e;

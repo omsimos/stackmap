@@ -5,10 +5,11 @@ import { Worker as Thread } from 'node:worker_threads';
 import ElkApi from 'elkjs/lib/elk-api.js';
 import ElkBundled from 'elkjs/lib/elk.bundled.js';
 import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api';
-import { cardSize, isLaneKind, usesCompactCards, type DiagramDraft, type Direction, type LaidOutDiagram, type Point, type Rect } from '@stackmap/core';
+import { cardSize, isLaneKind, measureText, round, usesCompactCards, type DiagramDraft, type DiagramGroup, type Direction, type LaidOutDiagram, type Point, type Rect } from '@stackmap/core';
 import { runChild, threadPort } from './elk-io';
-import { placeLabels } from './labels';
+import { boundsWithLabels, placeLabels } from './labels';
 import { layoutLanes } from './lanes';
+import { simplify } from './route';
 import { layoutSequence } from './sequence';
 
 export { layoutLanes } from './lanes';
@@ -33,6 +34,8 @@ export const isLarge = (draft: DiagramDraft) => draft.nodes.length > RETRY_LIMIT
 const LAYER_GAP = 'elk.layered.spacing.nodeNodeBetweenLayers';
 const EDGE_RUN = 'elk.layered.spacing.edgeNodeBetweenLayers';
 const GROUP_PREFIX = 'group:';
+/** A group title's width from its frame's left edge, as the viewer draws it: 12.5px medium, 20px in, a shield on a trust boundary. */
+const titleWidth = (g: DiagramGroup) => 20 + (g.tone === 'security' ? 19 : 0) + Math.ceil(measureText(g.label, 'sans500', 12.5)) + 8;
 
 /** ELK recurses along each connected run of the graph: a few hundred connected nodes overflow Node's ~1 MB stack. */
 const ELK_STACK_MB = 256;
@@ -209,7 +212,6 @@ function portKey(e: DiagramDraft['edges'][number], node: string, role: 'out' | '
   return `${node}:${role}:${flipped ? 'flipped' : 'flow'}:${e.tone ?? ''}:${e.kind ?? 'sync'}`;
 }
 
-const round = (n: number) => Math.round(n * 100) / 100;
 
 export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram> {
   if (isLaneKind(draft.kind)) return layoutLanes(draft);
@@ -268,6 +270,12 @@ export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram
     });
   }
 
+  // ELK sizes a container round its children; with none it is a 0×0 node. Give an empty group room for its title.
+  for (const g of draft.groups ?? []) {
+    const frame = groupNodes.get(g.id)!;
+    if (!frame.children!.length) Object.assign(frame, { width: titleWidth(g) + 12, height: GROUP_LABEL_BAND + 24 });
+  }
+
   for (const e of draft.edges) {
     for (const end of [e.from, e.to]) {
       if (!nodeIds.has(end)) throw new Error(`Edge '${e.id}' references unknown node '${end}'`);
@@ -317,30 +325,33 @@ export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram
         widen(graph);
       }
       const opts = graph.layoutOptions!;
-      // A large diagram is past the unwrapped width anyway, and its flow order isn't needed (no flips): lay it out once.
+      // A large diagram is laid out once: ELK's own wrap decision (by aspect ratio alone) stands in for the width gate,
+      // which needs a first run to measure, and the flow order isn't needed (no flips).
       if (large && !stages) {
-        const wrapped = collect(draft, await elk.layout({ ...structuredClone(graph), layoutOptions: { ...opts, ...wrapOptions } }), direction, false, reversed);
-        return { laid: wrapped, flow: wrapped.nodes };
+        return { laid: collect(draft, await elk.layout({ ...structuredClone(graph), layoutOptions: { ...opts, ...wrapOptions } }), direction, false, reversed), flat: null };
       }
       const flat = await elk.layout(structuredClone(graph));
       // Wrapping would fold stages back onto each other.
       const wrap = (flat.width ?? 0) > MAX_UNWRAPPED_WIDTH && !stages;
       const result = wrap ? await elk.layout({ ...structuredClone(graph), layoutOptions: { ...opts, ...wrapOptions } }) : flat;
-      // Flow order is read before wrapping, which moves later layers back to the start of a new row.
-      return { laid: collect(draft, result, direction, stages !== null, reversed), flow: collect(draft, flat, direction, false, reversed).nodes };
+      // `flat` only when it isn't what was collected: the layout before wrapping.
+      return { laid: collect(draft, result, direction, stages !== null, reversed), flat: wrap ? flat : null };
     };
-    let { laid, flow } = await run();
+    const first = await run();
+    let laid = first.laid;
     // A group that both feeds and is fed by another can only sit on one side of it, so some edge between them runs
     // against the flow: entering its target from the far side, it wraps round the diagram. Lay such an edge out
     // from its target (it then leaves and enters by the facing sides) and redo the layout once.
-    const flips = large ? [] : againstFlow(draft, flow, direction, reversed);
+    // Flow order is read before wrapping, which moves later layers back to the start of a new row.
+    const flips = large ? [] : againstFlow(draft, first.flat ? collect(draft, first.flat, direction, false, reversed).nodes : laid.nodes, direction, reversed);
     if (flips.length) {
       reversed = new Set(reversed);
       for (const id of flips) reversed.has(id) ? reversed.delete(id) : reversed.add(id);
       wire(reversed);
       ({ laid } = await run());
     }
-    const place = (l: LaidOutDiagram) => placeLabels(draft.edges, l.edges, Object.values(l.nodes), !compact, Object.values(l.groups).map((rect) => ({ rect, band: GROUP_LABEL_BAND })));
+    const frames = (l: LaidOutDiagram) => (draft.groups ?? []).map((g) => ({ rect: l.groups[g.id]!, band: GROUP_LABEL_BAND, title: titleWidth(g) }));
+    const place = (l: LaidOutDiagram) => placeLabels(draft.edges, l.edges, Object.values(l.nodes), !compact, frames(l));
     let spots = place(laid);
     // A label that found no room to sit widens the layer gaps: compact layouts start tight on purpose, and a full
     // layout's gap can still be narrower than a label beside a branch. Two ways to make room are tried: wider gaps,
@@ -349,12 +360,14 @@ export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram
     if (spots.misfit > 0 && !large) {
       const cap = compact ? COMPACT_GAP.max : FULL_GAP_MAX;
       const defaultRun = Number(root.layoutOptions![EDGE_RUN]);
-      const gap = Math.min(cap, Math.max(Number(root.layoutOptions![LAYER_GAP]), spots.misfit + (compact ? 24 : 48)));
+      const current = Number(root.layoutOptions![LAYER_GAP]);
+      const gap = Math.min(cap, Math.max(current, spots.misfit + (compact ? 24 : 48)));
       const longRun = Math.min(direction === 'RIGHT' ? spots.misfit + 16 : 40, Math.floor((cap - 24) / 2));
       const tries = [
         { gap, run: defaultRun },
         { gap: Math.max(gap, 2 * longRun + 24), run: longRun },
-      ];
+        // Room the first layout already had (groups aside: they take the gap only on a retry) gives that layout again.
+      ].filter((room) => draft.groups?.length || room.gap !== current || room.run !== defaultRun);
       const worse = (a: typeof spots, b: typeof spots) => a.forced - b.forced || a.unseated - b.unseated || a.misfit - b.misfit;
       for (const room of tries) {
         const wider = (await run(room)).laid;
@@ -363,7 +376,7 @@ export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram
         if (spots.unseated === 0) break;
       }
     }
-    return { ...laid, labels: spots.labels };
+    return { ...laid, labels: spots.labels, bounds: boundsWithLabels(laid.bounds, draft.edges, spots.labels) };
   } finally {
     dispose();
   }
@@ -409,7 +422,7 @@ function collect(draft: DiagramDraft, result: ElkNode, direction: Direction, sta
 
   const bounds = { width: round(result.width ?? 0), height: round(result.height ?? 0) };
   if (!staged) return { draft, nodes, groups, edges, bounds };
-  return { draft, nodes, groups, edges, bounds, phases: stageBands(draft, nodes, direction) };
+  return { draft, nodes, groups, edges, bounds, phases: stageBands(draft, nodes, groups, direction) };
 }
 
 /**
@@ -417,18 +430,15 @@ function collect(draft: DiagramDraft, result: ElkNode, direction: Direction, sta
  * as a soft, slanted hairline. Snap each such run to one whole coordinate (a run continuing a straight one keeps its
  * line) and drop the bends that no longer turn. Edges sharing a trunk share its points, so they snap alike.
  */
-function squared(pts: Point[]): Point[] {
+export function squared(pts: Point[]): Point[] {
   for (let i = 1; i < pts.length; i++) {
     const [a, b] = [pts[i - 1]!, pts[i]!];
     const [dx, dy] = [Math.abs(a.x - b.x), Math.abs(a.y - b.y)];
     if (dx > 0 && dx < 1 && dy >= 1) a.x = b.x = i > 1 && pts[i - 2]!.x === a.x ? a.x : Math.round((a.x + b.x) / 2);
     else if (dy > 0 && dy < 1 && dx >= 1) a.y = b.y = i > 1 && pts[i - 2]!.y === a.y ? a.y : Math.round((a.y + b.y) / 2);
   }
-  return pts.filter((p, i) => {
-    const [prev, next] = [pts[i - 1], pts[i + 1]];
-    if (!prev || !next) return true;
-    return !((prev.x === p.x && p.x === next.x) || (prev.y === p.y && p.y === next.y));
-  });
+  // Repeated points first: tested against its twin, a doubled corner would count as straight both ways and vanish.
+  return simplify(pts);
 }
 
 const STEP_MAX = 16;
@@ -500,32 +510,52 @@ function stagePartitions(draft: DiagramDraft): Map<string, number> {
     }
     if (!changed) break;
   }
-  // Partitions only order the top level; grouped nodes are left to the group's own layout.
+  // Partitions only order the top level; grouped nodes are left to the group's own layout. (ELK ignores a partition
+  // set on a group or inside one, so a group can't be held to a stage.)
   const grouped = new Set(draft.nodes.filter((n) => n.group !== undefined).map((n) => n.id));
   for (const n of draft.nodes) if (!part.has(n.id)) part.set(n.id, 0);
   for (const id of grouped) part.delete(id);
   return part;
 }
 
-/** One band per stage: its nodes' extent along the flow, the whole diagram across it, plus the label band. */
-function stageBands(draft: DiagramDraft, nodes: Record<string, Rect>, direction: Direction): Record<string, Rect> {
+/** Each group's cards, those of the groups nested in it included. */
+function groupMembers(draft: DiagramDraft): Map<string, string[]> {
+  const parent = new Map((draft.groups ?? []).map((g) => [g.id, g.parent]));
+  const out = new Map<string, string[]>((draft.groups ?? []).map((g) => [g.id, []]));
+  for (const n of draft.nodes) {
+    // The step count guards against a draft whose groups name each other as parent.
+    for (let g = n.group, steps = 0; g !== undefined && out.has(g) && steps <= parent.size; g = parent.get(g), steps++) out.get(g)!.push(n.id);
+  }
+  return out;
+}
+
+/**
+ * One band per stage: its nodes' extent along the flow, the whole diagram across it, plus the label band. Group
+ * frames count: across the flow all of them (a frame's title would otherwise sit under the stage labels), and along
+ * it the frames of groups whose cards are all in the stage.
+ */
+function stageBands(draft: DiagramDraft, nodes: Record<string, Rect>, groups: Record<string, Rect>, direction: Direction): Record<string, Rect> {
   const out: Record<string, Rect> = {};
-  const all = Object.values(nodes);
-  if (!all.length) return out;
+  if (!Object.keys(nodes).length) return out;
+  const all = [...Object.values(nodes), ...Object.values(groups)];
+  const members = [...groupMembers(draft)];
   const top = Math.min(...all.map((r) => r.y));
   const bottom = Math.max(...all.map((r) => r.y + r.height));
   const left = Math.min(...all.map((r) => r.x));
   const right = Math.max(...all.map((r) => r.x + r.width));
   for (const p of draft.phases ?? []) {
-    const members = (p.nodes ?? []).flatMap((id) => nodes[id] ?? []);
-    if (!members.length) continue;
+    const cards = (p.nodes ?? []).flatMap((id) => nodes[id] ?? []);
+    if (!cards.length) continue;
+    const own = new Set(p.nodes);
+    const frames = members.flatMap(([id, ns]) => (ns.length && ns.every((n) => own.has(n)) && groups[id] ? [groups[id]] : []));
+    const inside = [...cards, ...frames];
     if (direction === 'RIGHT') {
-      const x = Math.min(...members.map((r) => r.x)) - STAGE_PAD;
-      const x2 = Math.max(...members.map((r) => r.x + r.width)) + STAGE_PAD;
+      const x = Math.min(...inside.map((r) => r.x)) - STAGE_PAD;
+      const x2 = Math.max(...inside.map((r) => r.x + r.width)) + STAGE_PAD;
       out[p.id] = { x: round(x), y: round(top - STAGE_PAD - STAGE_LABEL_BAND), width: round(x2 - x), height: round(bottom - top + 2 * STAGE_PAD + STAGE_LABEL_BAND) };
     } else {
-      const y = Math.min(...members.map((r) => r.y)) - STAGE_PAD;
-      const y2 = Math.max(...members.map((r) => r.y + r.height)) + STAGE_PAD;
+      const y = Math.min(...inside.map((r) => r.y)) - STAGE_PAD;
+      const y2 = Math.max(...inside.map((r) => r.y + r.height)) + STAGE_PAD;
       out[p.id] = { x: round(left - STAGE_PAD - 160), y: round(y), width: round(right - left + 2 * STAGE_PAD + 160), height: round(y2 - y) };
     }
   }

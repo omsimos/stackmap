@@ -1,5 +1,5 @@
-import { assignColumns, backEdges, cardSize, COMPACT, type DiagramDraft, type DiagramEdge, type LaidOutDiagram, type Point, type Rect } from '@stackmap/core';
-import { labelWidth, placeLabels } from './labels';
+import { assignColumns, backEdges, cardSize, COMPACT, round, type DiagramDraft, type DiagramEdge, type LaidOutDiagram, type Point, type Rect } from '@stackmap/core';
+import { boundsWithLabels, labelWidth, placeLabels } from './labels';
 
 export { assignColumns, backEdges } from '@stackmap/core';
 import { nudge, routeEdges, STUB, type PortChoice, type RouteRequest } from './route';
@@ -28,8 +28,6 @@ export const GROUP_LABEL = 28;
 /** Room left of a lifecycle start state for its initial marker. */
 export const START_MARK = 28;
 
-
-const round = (n: number) => Math.round(n * 100) / 100;
 const roundRect = (r: Rect): Rect => ({ x: round(r.x), y: round(r.y), width: round(r.width), height: round(r.height) });
 
 function portChoices(sameLane: boolean, dCol: number, dLane: number, isBack: boolean): { sources: PortChoice[]; targets: PortChoice[] } {
@@ -133,7 +131,12 @@ export function layoutLanes(draft: DiagramDraft): LaidOutDiagram {
   const xs = [x0 - (hasStart ? START_MARK : 0) - LANE_PAD_X / 2, bandX + bandW - LANE_PAD_X / 2];
   for (let c = 0; c < cols - 1; c++) xs.push(colX(c) + cardW + gutter / 2);
   const ys: number[] = [];
-  for (const r of Object.values(laneRects)) ys.push(r.y + r.height - LANE_PAD_BOTTOM / 2, r.y - LANE_GAP / 2, r.y + r.height + LANE_GAP / 2);
+  // Above the first lane the channel runs mid-way to the phase header, whose lower edge is where it would else be.
+  const above = (r: Rect) => r.y - (r.y === top && draft.phases?.length ? PHASE_GAP : LANE_GAP) / 2;
+  for (const r of Object.values(laneRects)) ys.push(r.y + r.height - LANE_PAD_BOTTOM / 2, above(r), r.y + r.height + LANE_GAP / 2);
+  // The lines the diagram rules itself. A first-row card's top stub ends on its lane's upper edge (LANE_PAD_TOP is
+  // one STUB), so a route bending there would run along it: routes pay to, and nudged tracks never land on one.
+  const ruled = [...Object.values(laneRects).flatMap((r) => [r.y, r.y + r.height]), ...(draft.phases?.length ? [PAD + PHASE_BAND] : [])];
   // Lane rails, group labels and start markers are text and marks that edges must not run over.
   const obstacles: Rect[] = [];
   for (const lane of lanes) {
@@ -175,14 +178,15 @@ export function layoutLanes(draft: DiagramDraft): LaidOutDiagram {
     })
     .sort((a, b) => a.order - b.order);
   const ends = Object.fromEntries(draft.edges.map((e) => [e.id, { from: e.from, to: e.to }]));
-  const routed = nudge(routeEdges(rects, requests, { xs, ys }, obstacles), ends);
+  const routed = nudge(routeEdges(rects, requests, { xs, ys, ruled }, obstacles), ends, Object.values(rects), ruled);
 
   const edges: Record<string, Point[]> = {};
   for (const e of draft.edges) {
     if (routed[e.id]) edges[e.id] = routed[e.id]!.map((p) => ({ x: round(p.x), y: round(p.y) }));
   }
 
-  const { labels } = placeLabels(draft.edges, edges, Object.values(rects), false, Object.values(groupRects).map((rect) => ({ rect, band: GROUP_LABEL })));
+  const frames = (draft.groups ?? []).flatMap((g) => (groupRects[g.id] ? [{ rect: groupRects[g.id]!, band: GROUP_LABEL, title: labelWidth(g.label) + 24 }] : []));
+  const { labels } = placeLabels(draft.edges, edges, Object.values(rects), false, frames);
 
   const height = y - LANE_GAP + PAD;
   return {
@@ -193,6 +197,6 @@ export function layoutLanes(draft: DiagramDraft): LaidOutDiagram {
     lanes: laneRects,
     phases: phaseRects,
     labels,
-    bounds: { width: round(bandX + bandW + PAD), height: round(height) },
+    bounds: boundsWithLabels({ width: round(bandX + bandW + PAD), height: round(height) }, draft.edges, labels),
   };
 }

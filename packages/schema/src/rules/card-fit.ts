@@ -1,4 +1,4 @@
-import { cardTextSlots, measureText, usesCompactCards, type DiagramDraft } from '@stackmap/core';
+import { cardTextSlots, measureText, shownText, usesCompactCards, type DiagramDraft } from '@stackmap/core';
 import type { Diagnostic } from '../diagnostics';
 
 const round = (n: number) => Math.round(n * 10) / 10;
@@ -9,8 +9,7 @@ export function cardFitDiagnostics(d: DiagramDraft): Diagnostic[] {
   const variant = usesCompactCards(d) ? 'compact' : 'full';
   d.nodes.forEach((n, i) => {
     for (const slot of cardTextSlots(n.card, variant)) {
-      // Cards render with white-space: nowrap, which collapses runs of whitespace and trims the ends.
-      const shown = slot.text.replace(/\s+/g, ' ').trim();
+      const shown = shownText(slot.text);
       const width = measureText(shown, slot.face, slot.size);
       if (width <= slot.maxWidth) continue;
       const chars = [...shown];

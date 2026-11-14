@@ -6,7 +6,7 @@ import { diagramOf } from './diagrams';
 import { DOC_PAGES, kindHref } from './docs-nav';
 import { KIND_PAGES } from './kinds';
 import { CLI_COMMANDS, CLI_OPTIONS, EXIT_CODES, VIEWER_KEYS } from './reference';
-import { PLACEMENTS } from './schema-page';
+import { fieldWords, searchFields } from './schema-page';
 import type { SearchEntry } from './search';
 import { SITE } from './site-data';
 
@@ -87,12 +87,8 @@ export function searchIndex(): SearchEntry[] {
   push({ title: `Exit codes ${EXIT_CODES.map((c) => c.code).join(', ').replace(/, (\d+)$/, ' and $1')}`, context: 'The CLI · Exit codes', href: '/docs/cli#exit', kind: 'command', words: 'exit status error' });
   for (const k of VIEWER_KEYS) push({ title: `${k.keys.join('  ')}  ${k.does}`, context: 'The viewer · Keyboard', href: '/docs/viewer#keys', kind: 'key', words: 'shortcut key keyboard' });
   for (const code of Object.values(SITE.codes).flat()) push({ title: code, context: 'The CLI · Diagnostic codes', href: '/docs/cli#codes', kind: 'code', words: 'diagnostic error warning' });
-  for (const section of schema as SchemaSection[]) {
-    const place = PLACEMENTS[section.name];
-    if (!place) continue;
-    for (const f of section.fields) {
-      push({ title: f.key, context: `Schema · ${place.title}`, href: `/docs/schema#${place.anchor}`, kind: 'field', words: `${f.key} ${f.type} ${f.notes}` });
-    }
+  for (const { field, place } of searchFields(schema as SchemaSection[])) {
+    push({ title: field.key, context: `Schema · ${place.title}`, href: `/docs/schema#${place.anchor}`, kind: 'field', words: fieldWords(field) });
   }
   return out;
 }

@@ -464,11 +464,11 @@ export const galleryLayouts: Record<string, LaidOutDiagram> = {
         },
         {
           "x": 1528,
-          "y": 708
+          "y": 700
         },
         {
           "x": 1576,
-          "y": 708
+          "y": 700
         },
         {
           "x": 1576,
@@ -571,7 +571,7 @@ export const galleryLayouts: Record<string, LaidOutDiagram> = {
       },
       "e9": {
         "x": 1576,
-        "y": 814.6
+        "y": 811.8
       },
       "e10": {
         "x": 1288,
@@ -1059,19 +1059,19 @@ export const galleryLayouts: Record<string, LaidOutDiagram> = {
         },
         {
           "x": 1048,
-          "y": 684
+          "y": 676
         },
         {
           "x": 1096,
-          "y": 684
+          "y": 676
         },
         {
           "x": 1096,
-          "y": 808
+          "y": 800
         },
         {
           "x": 1048,
-          "y": 808
+          "y": 800
         },
         {
           "x": 1048,
@@ -1148,7 +1148,7 @@ export const galleryLayouts: Record<string, LaidOutDiagram> = {
       },
       "e10": {
         "x": 1096,
-        "y": 783.2
+        "y": 775.2
       }
     },
     "bounds": {
@@ -2691,11 +2691,11 @@ export const galleryLayouts: Record<string, LaidOutDiagram> = {
         },
         {
           "x": 1316,
-          "y": 484
+          "y": 476
         },
         {
           "x": 1364,
-          "y": 484
+          "y": 476
         },
         {
           "x": 1364,
@@ -2765,11 +2765,11 @@ export const galleryLayouts: Record<string, LaidOutDiagram> = {
       },
       "restored": {
         "x": 1398,
-        "y": 536
+        "y": 532
       }
     },
     "bounds": {
-      "width": 1420,
+      "width": 1444,
       "height": 736
     }
   },

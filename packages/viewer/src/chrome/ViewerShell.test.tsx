@@ -85,6 +85,19 @@ describe('ViewerShell', () => {
     expect(screen.queryByRole('button', { name: 'Search nodes (/)' })).toBeNull();
   });
 
+  it('a card with nothing but a link still has it in the inspector, where the keyboard reaches it', () => {
+    const draft = {
+      ...commerceApiLayout.draft,
+      nodes: commerceApiLayout.draft.nodes.map((n) =>
+        n.id === 'orders' ? { ...n, card: { title: n.card.title, cta: { label: 'Open runbook', href: 'https://example.com/runbook' } } } : n,
+      ),
+    };
+    render(<ViewerShell diagram={{ ...commerceApiLayout, draft }} theme="light" onToggleTheme={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Orders, Database' }));
+    const link = within(screen.getByRole('complementary', { name: 'Inspector' })).getByRole('link', { name: 'Open runbook' });
+    expect(link).toHaveAttribute('href', 'https://example.com/runbook');
+  });
+
   it('has no editor controls', () => {
     render(<ViewerShell diagram={commerceApiLayout} theme="light" onToggleTheme={() => {}} />);
     for (const name of [/add/i, /undo/i, /redo/i, /lock/i]) expect(screen.queryByRole('button', { name })).toBeNull();

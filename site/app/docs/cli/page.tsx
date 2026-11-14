@@ -4,6 +4,7 @@ import { C, DocHead, H2, H3, P, Table } from '@/components/docs/prose';
 import { Tabs } from '@/components/docs/Tabs';
 import { Cmd } from '@/components/ui/Cmd';
 import { JsonCode, Terminal } from '@/components/ui/Code';
+import { PACKAGE } from '@/lib/package';
 import { CLI_COMMANDS, CLI_OPTIONS, EXIT_CODES, FAMILIES, type Family } from '@/lib/reference';
 import { OPEN_GRAPH } from '@/lib/seo';
 import { SITE } from '@/lib/site-data';
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 };
 
 const DEMO = '.stackmap/commerce-api/diagram.json';
-const npx = `npx @omsimos/stackmap@${SITE.version}`;
+const npx = `npx ${PACKAGE}@${SITE.version}`;
 
 function Synopsis({ name }: { name: (typeof CLI_COMMANDS)[number]['name'] }) {
   const c = CLI_COMMANDS.find((x) => x.name === name)!;

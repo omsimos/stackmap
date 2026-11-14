@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cardSize, type DiagramDraft, type DiagramNode, type Point, type Rect } from '@stackmap/core';
 import { commerceApi, groupedPlatform } from '@stackmap/core/samples';
-import { GROUP_LABEL_BAND, layoutDiagram } from '../src/index';
+import { GROUP_LABEL_BAND, layoutDiagram, squared, STAGE_LABEL_BAND } from '../src/index';
 import { STRESS } from './stress';
 
 const node = (id: string, extra: Partial<DiagramNode> = {}): DiagramNode => ({
@@ -17,6 +17,16 @@ const near = (a: Point, b: Point) => {
   expect(a.x).toBeCloseTo(b.x, 0);
   expect(a.y).toBeCloseTo(b.y, 0);
 };
+
+describe('squared', () => {
+  it('snaps a near-straight run and drops the bend that no longer turns', () => {
+    expect(squared([{ x: 0, y: 10.33 }, { x: 50, y: 10 }, { x: 90, y: 10 }])).toEqual([{ x: 0, y: 10 }, { x: 90, y: 10 }]);
+  });
+
+  it('keeps a corner that comes as two points in the same place', () => {
+    expect(squared([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])).toEqual([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }]);
+  });
+});
 
 describe('layoutDiagram', () => {
   it('places the target to the right and routes port to port', async () => {
@@ -200,6 +210,35 @@ describe('layoutDiagram', () => {
       expect(label.x).toBeLessThan(target.x + target.width);
       expect(label.y).toBeLessThan(target.y);
     }
+  });
+
+  it('draws a group with nothing in it as a frame that holds its title', async () => {
+    const out = await layoutDiagram(draft({ groups: [{ id: 'g', label: 'Empty' }, { id: 'h', label: 'Full' }], nodes: [node('a', { group: 'h' }), node('b')] }));
+    const g = out.groups.g!;
+    expect(g.width).toBeGreaterThan(60);
+    expect(g.height).toBeGreaterThanOrEqual(GROUP_LABEL_BAND);
+    const overlap = (a: Rect, b: Rect) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+    for (const r of [out.groups.h!, out.nodes.b!]) expect(overlap(g, r)).toBe(false);
+  });
+
+  it.each(['RIGHT', 'DOWN'] as const)('draws a stage band round the frame of a group that belongs to it, clear of the stage labels (%s)', async (direction) => {
+    const out = await layoutDiagram(
+      draft({
+        direction,
+        groups: [{ id: 'g', label: 'Workers' }],
+        nodes: [node('a'), node('b', { group: 'g' }), node('c', { group: 'g' }), node('d')],
+        edges: [{ id: '1', from: 'a', to: 'b' }, { id: '2', from: 'a', to: 'c' }, { id: '3', from: 'b', to: 'd' }],
+        phases: [{ id: 'in', label: 'In', nodes: ['a'] }, { id: 'work', label: 'Work', nodes: ['b', 'c'] }, { id: 'out', label: 'Out', nodes: ['d'] }],
+      }),
+    );
+    const [g, band] = [out.groups.g!, out.phases!.work!];
+    expect(g.x).toBeGreaterThanOrEqual(band.x);
+    expect(g.y).toBeGreaterThanOrEqual(band.y);
+    expect(g.x + g.width).toBeLessThanOrEqual(band.x + band.width);
+    expect(g.y + g.height).toBeLessThanOrEqual(band.y + band.height);
+    // The stage's label strip (above the bands left to right, down their left side top-down) stays off the frame.
+    if (direction === 'RIGHT') expect(g.y).toBeGreaterThanOrEqual(band.y + STAGE_LABEL_BAND);
+    else expect(g.x).toBeGreaterThanOrEqual(band.x + 160);
   });
 
   it('top-aligns the cards of a row, whatever their heights', async () => {

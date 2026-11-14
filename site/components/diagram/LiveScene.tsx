@@ -1,6 +1,6 @@
 'use client';
 
-import { useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useMemo, useRef, type RefObject } from 'react';
 import type { LaidOutDiagram } from '@stackmap/core';
 import { toScene, type Scene } from '@stackmap/viewer/src/canvas/scene';
 import { SceneLayers } from '@stackmap/viewer/src/canvas/SceneLayers';
@@ -10,6 +10,7 @@ import { ExploreProvider, useExplore } from '@stackmap/viewer/src/explore/Explor
 import { motionAllowed } from '@stackmap/viewer/src/motion/motion';
 import { useFlow } from '@stackmap/viewer/src/motion/useFlow';
 import { useSceneReveal } from '@stackmap/viewer/src/motion/useSceneReveal';
+import { useFit } from './useFit';
 
 const noop = () => {};
 const still: Camera = { zoomIn: noop, zoomOut: noop, fit: noop, centerOn: noop, fitRect: noop, panBy: noop, ensureVisible: noop };
@@ -54,20 +55,7 @@ export function LiveScene({
 }) {
   const scene = useMemo(() => toScene(diagram), [diagram]);
   const { width, height } = scene.content;
-  const fit = (w: number, h: number) => Math.max(0, Math.min(max, (w - 2 * pad) / width, (h - 2 * pad) / height));
-  const box = useRef<HTMLDivElement>(null);
-  const [k, setK] = useState(() => fit(initial.width, initial.height));
-  useLayoutEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    const measure = () => el.clientWidth && setK(fit(el.clientWidth, el.clientHeight));
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-    // fit reads only width, height, pad and max
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [width, height, pad, max]);
+  const [box, k] = useFit(scene.content, initial, pad, max);
   const flowing = flow && motionAllowed();
   return (
     <div ref={box} className="relative size-full overflow-hidden">

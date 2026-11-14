@@ -94,3 +94,46 @@ test('in a presentation, Space presses the focused button and M leaves the radar
   await expect(bar).toBeHidden();
   await expect(page.getByRole('img', { name: 'Minimap' })).toBeHidden();
 });
+
+test('the presentation refits once full screen has resized the stage, entering and leaving', async ({ page }) => {
+  // Headless Chromium never resizes for full screen: stand in for it, with the resize landing after the request.
+  await page.addInitScript(() => {
+    let current: Element | null = null;
+    const land = (el: Element | null) => {
+      current = el;
+      document.dispatchEvent(new Event('fullscreenchange'));
+    };
+    Object.defineProperty(document, 'fullscreenElement', { get: () => current });
+    Element.prototype.requestFullscreen = function () {
+      (window as unknown as { landFullscreen: () => void }).landFullscreen = () => land(this);
+      return Promise.resolve();
+    };
+    document.exitFullscreen = () => {
+      (window as unknown as { landFullscreen: () => void }).landFullscreen = () => land(null);
+      return Promise.resolve();
+    };
+  });
+  const offCentre = async () => {
+    await page.waitForTimeout(250);
+    return page.evaluate(() => {
+      const stage = document.querySelector('.sm-stage')!.getBoundingClientRect();
+      const cards = [...document.querySelectorAll('.sm-card')].map((c) => c.getBoundingClientRect());
+      const left = Math.min(...cards.map((c) => c.left));
+      const right = Math.max(...cards.map((c) => c.right));
+      return Math.abs((left + right) / 2 - (stage.left + stage.width / 2));
+    });
+  };
+  const land = () => page.evaluate(() => (window as unknown as { landFullscreen: () => void }).landFullscreen());
+  await page.goto('/?page=sample');
+  await expect(page.locator('.sm-card')).toHaveCount(6);
+  await page.keyboard.press('f');
+  await page.waitForTimeout(250);
+  await page.setViewportSize({ width: 1900, height: 1100 });
+  await land();
+  expect(await offCentre()).toBeLessThan(2);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(250);
+  await page.setViewportSize({ width: 1440, height: 960 });
+  await land();
+  expect(await offCentre()).toBeLessThan(2);
+});

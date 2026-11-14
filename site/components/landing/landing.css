@@ -179,6 +179,14 @@
 .how-stick {
   position: relative;
 }
+/* The pinned walkthrough's runway (How.tsx), reserved before script runs so nothing below it moves on hydration. */
+@media (prefers-reduced-motion: no-preference) and (min-width: 1024px) {
+  .js .how-pin::after {
+    content: '';
+    display: block;
+    height: 160vh;
+  }
+}
 .how-frame {
   display: flex;
   flex-direction: column;

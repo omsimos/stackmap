@@ -1,4 +1,4 @@
-import { cardSize, measureText, type DiagramDraft, type DiagramEdge, type LaidOutDiagram, type Point, type Rect, type SequenceLayout } from '@stackmap/core';
+import { cardSize, measureText, round, type DiagramDraft, type DiagramEdge, type LaidOutDiagram, type Point, type Rect, type SequenceLayout } from '@stackmap/core';
 
 // Sequence layout: participants across the top in draft order, messages top to bottom in edge order. The agent
 // gives only order; stackmap derives column spacing from the labels, rows from the messages and phases, and
@@ -24,8 +24,6 @@ const MIN_BAR = 24;
 const LABEL = { face: 'sans400', size: 11.5, height: 16, gap: 6 } as const;
 const labelWidth = (text: string) => Math.ceil(measureText(text, LABEL.face, LABEL.size)) + 12;
 
-const round = (n: number) => Math.round(n * 100) / 100;
-
 export interface Bar {
   participant: string;
   /** 0 = on the lifeline; a self-call nests one step right of what is open */
@@ -42,9 +40,10 @@ export interface Bar {
 
 /**
  * Activation bars by simulation over the messages in order, per participant a stack of open bars:
- * - a call to an idle participant opens a bar; a call to one that is waiting on its own call (a callback)
- *   nests a bar inside; a call from someone new to a participant that is busy but waiting on nobody first ends
- *   the old bar where it was last busy;
+ * - a call to an idle participant opens a bar; a call to one that is waiting on its own call nests a bar inside,
+ *   when it is a callback or comes from a new caller (a caller repeating its request with no reply drawn stays in
+ *   the bar it opened); a call from someone new to a participant that is busy but waiting on nobody first ends the
+ *   old bar where it was last busy;
  * - a reply closes the replier's bar opened by the one it answers (else its innermost), with any nested inside;
  * - a self-call nests a short bar; sending or receiving keeps a bar busy;
  * - a bar still open at the end runs to its participant's last message.
@@ -63,6 +62,17 @@ export function activations(edges: DiagramEdge[]): Bar[] {
   const touch = (p: string, row: number) => {
     const top = stacks.get(p)?.at(-1);
     if (top) top.busy = row;
+  };
+  /** Whether `p` is waiting on `q`, directly or down its chain of calls: a call from `q` is then a callback. */
+  const awaits = (p: string, q: string) => {
+    const seen = new Set([p]);
+    for (const x of seen) {
+      for (const w of waiting.get(x) ?? []) {
+        if (w === q) return true;
+        seen.add(w);
+      }
+    }
+    return false;
   };
   edges.forEach((e, row) => {
     last.set(e.from, row);
@@ -92,7 +102,8 @@ export function activations(edges: DiagramEdge[]): Bar[] {
     }
     // Receiving counts as busy, but only for work this message belongs to (checked above).
     touch(e.to, row);
-    if (!st.length || (pending && e.kind !== 'async')) {
+    // Without the caller check, every repeat of an unanswered request would nest one bar deeper.
+    if (!st.length || (pending && e.kind !== 'async' && (awaits(e.to, e.from) || !st.some((b) => b.caller === e.from)))) {
       const bar: Bar = { participant: e.to, depth: st.length, from: row, to: row, caller: e.from, busy: row };
       st.push(bar);
       bars.push(bar);
@@ -177,10 +188,11 @@ export function layoutSequence(draft: DiagramDraft): LaidOutDiagram {
     const y1 = Math.max(b.self ? y0 : rowY[b.to]! + 6, y0 + (b.self ? 18 : MIN_BAR));
     return { x: round(x), y: round(y0), width: ACTIVATION.width, height: round(y1 - y0) };
   };
-  // A message leaves and arrives at the edge of the innermost bar open on its row.
-  const reach = (participant: string, row: number) => {
-    const open = bars.filter((b) => !b.self && b.participant === participant && b.from <= row && b.to >= row);
-    return open.length ? ACTIVATION.width / 2 + Math.max(...open.map((b) => b.depth)) * ACTIVATION.nest : 0;
+  // A message leaves and arrives at the face of the bars open on its row: nested bars step right, so the right
+  // face is the innermost bar's and the left face the outermost's. `side` is 1 for the right, -1 for the left.
+  const reach = (participant: string, row: number, side: number) => {
+    const depths = bars.filter((b) => !b.self && b.participant === participant && b.from <= row && b.to >= row).map((b) => b.depth);
+    return depths.length ? (side * ACTIVATION.width) / 2 + (side > 0 ? Math.max(...depths) : Math.min(...depths)) * ACTIVATION.nest : 0;
   };
 
   const out: Record<string, Point[]> = {};
@@ -189,7 +201,7 @@ export function layoutSequence(draft: DiagramDraft): LaidOutDiagram {
     const y = rowY[i]!;
     const x = xOf(e.from);
     if (e.from === e.to) {
-      const x0 = x + reach(e.from, i);
+      const x0 = x + reach(e.from, i, 1);
       const bar = bars.find((b) => b.self === e.id)!;
       out[e.id] = [
         { x: round(x0), y: round(y) },
@@ -202,8 +214,8 @@ export function layoutSequence(draft: DiagramDraft): LaidOutDiagram {
     }
     const tx = xOf(e.to);
     const dir = tx > x ? 1 : -1;
-    const a = x + dir * reach(e.from, i);
-    const b = tx - dir * reach(e.to, i);
+    const a = x + reach(e.from, i, dir);
+    const b = tx + reach(e.to, i, -dir);
     out[e.id] = [
       { x: round(a), y: round(y) },
       { x: round(b), y: round(y) },

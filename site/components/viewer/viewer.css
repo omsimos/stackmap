@@ -89,15 +89,13 @@
   }
 }
 @media (max-width: 767px) {
-  .ev-head .cnt {
+  .ev-head .cnt,
+  .ev-head .ev-icon {
     display: none;
   }
   .ev-stage {
     height: 470px;
     border-radius: 18px;
-  }
-  .ev-body {
-    gap: 12px;
   }
   .ev-body > aside {
     max-height: 260px;

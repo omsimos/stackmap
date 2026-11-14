@@ -4,6 +4,7 @@ import { countByType, TYPE_LABELS, type DiagramDraft, type DiagramEdge, type Dia
 import { focusCard } from '../canvas/SceneLayers';
 import { routeBetween } from '../explore/graph';
 import { useExplore } from '../explore/ExploreContext';
+import { useViewerRoot } from '../explore/scope';
 import { useInFlight } from '../motion/inFlight';
 import { swapIn } from '../motion/motion';
 import { IconButton, PANEL_STYLE } from './ui';
@@ -163,9 +164,11 @@ function Connections({ node }: { node: DiagramNode }) {
 
 function NodeDetail({ node, toggle }: { node: DiagramNode; toggle: ReactNode }) {
   const { draft, dispatch } = useExplore();
+  const root = useViewerRoot();
   const { card } = node;
   const lane = node.lane ? draft.lanes?.find((l) => l.id === node.lane)?.label : undefined;
   const H = useHeading(0);
+  const details = !!(card.rows?.length || card.stats?.length || card.footer);
   return (
     <>
       <div className="flex items-center justify-between">
@@ -178,7 +181,7 @@ function NodeDetail({ node, toggle }: { node: DiagramNode; toggle: ReactNode }) 
             label="Clear selection (Esc)"
             onClick={() => {
               dispatch({ type: 'clear' });
-              focusCard(node.id); // back where the keyboard user came from
+              focusCard(node.id, root()); // back where the keyboard user came from
             }}
           >
             <X size={16} strokeWidth={1.75} />
@@ -198,26 +201,28 @@ function NodeDetail({ node, toggle }: { node: DiagramNode; toggle: ReactNode }) 
           {lane && <span>{lane}</span>}
         </p>
       )}
-      {(card.rows?.length || card.stats?.length || card.footer) && (
+      {(details || card.cta?.href) && (
         <Section title="Details">
-          <dl className="space-y-2 text-[13px]">
-            {card.rows?.map((r, i) => (
-              <div key={`r${i}`} className="flex justify-between gap-4">
-                <dt className="text-fg-muted">{r.label}</dt>
-                <dd className={`text-right break-all text-fg ${r.mono ? 'font-mono text-[12px]' : ''}`}>{r.value}</dd>
-              </div>
-            ))}
-            {card.stats?.map((s, i) => (
-              <div key={`s${i}`} className="flex justify-between gap-4">
-                <dt className="text-fg-muted">{s.label}</dt>
-                <dd className="text-fg tabular-nums">{s.value}</dd>
-              </div>
-            ))}
-            {card.stats?.length && card.statsNote ? <p className="text-fg-muted">{card.statsNote}</p> : null}
-            {[card.footer?.left, card.footer?.right].map((f, i) => (f ? <p key={`f${i}`} className="text-fg-muted">{f.text}</p> : null))}
-          </dl>
+          {details && (
+            <dl className="space-y-2 text-[13px]">
+              {card.rows?.map((r, i) => (
+                <div key={`r${i}`} className="flex justify-between gap-4">
+                  <dt className="text-fg-muted">{r.label}</dt>
+                  <dd className={`text-right break-all text-fg ${r.mono ? 'font-mono text-[12px]' : ''}`}>{r.value}</dd>
+                </div>
+              ))}
+              {card.stats?.map((s, i) => (
+                <div key={`s${i}`} className="flex justify-between gap-4">
+                  <dt className="text-fg-muted">{s.label}</dt>
+                  <dd className="text-fg tabular-nums">{s.value}</dd>
+                </div>
+              ))}
+              {card.stats?.length && card.statsNote ? <p className="text-fg-muted">{card.statsNote}</p> : null}
+              {[card.footer?.left, card.footer?.right].map((f, i) => (f ? <p key={`f${i}`} className="text-fg-muted">{f.text}</p> : null))}
+            </dl>
+          )}
           {card.cta?.href && (
-            <a href={card.cta.href} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-fg hover:underline">
+            <a href={card.cta.href} target="_blank" rel="noreferrer" className={`${details ? 'mt-4 ' : ''}inline-flex items-center gap-1.5 text-[13px] font-medium text-fg hover:underline`}>
               {card.cta.label}
               <ArrowUpRight size={14} strokeWidth={1.75} aria-hidden="true" />
             </a>

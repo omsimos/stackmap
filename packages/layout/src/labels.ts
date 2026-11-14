@@ -1,21 +1,47 @@
-import { measureText, polylineMidpoint, type Point, type Rect } from '@stackmap/core';
+import { measureText, polylineMidpoint, round, type Point, type Rect } from '@stackmap/core';
 
 // Edge label placement shared by the lane and ELK layouts: the viewer's pill (11px Geist, 8px padding each side,
 // 20px tall) on a run of the route, clear of cards, other labels and other edges' lines.
 
 const LABEL_H = 20;
 export const labelWidth = (text: string) => Math.ceil(measureText(text, 'sans400', 11)) + 16;
-const round = (n: number) => Math.round(n * 100) / 100;
 
 const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
-/** Whether any axis-aligned segment of a route runs through the rectangle. */
-const crossed = (r: Rect, lines: Point[][]) =>
-  lines.some((pts) =>
-    pts.slice(1).some((b, i) => {
-      const a = pts[i]!;
-      return Math.max(a.x, b.x) > r.x && Math.min(a.x, b.x) < r.x + r.width && Math.max(a.y, b.y) > r.y && Math.min(a.y, b.y) < r.y + r.height;
-    }),
+/** A route with its bounding box: most routes are nowhere near a given spot, and the box says so at once. */
+interface Line {
+  id?: string;
+  pts: Point[];
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+function line(pts: Point[], id?: string): Line {
+  const l: Line = { id, pts, x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+  for (const p of pts) {
+    l.x0 = Math.min(l.x0, p.x);
+    l.y0 = Math.min(l.y0, p.y);
+    l.x1 = Math.max(l.x1, p.x);
+    l.y1 = Math.max(l.y1, p.y);
+  }
+  return l;
+}
+/** Whether any axis-aligned segment of a route (the edge's own aside) runs through the rectangle. */
+const crossed = (r: Rect, lines: Line[], own?: string) =>
+  lines.some(
+    (l) =>
+      (own === undefined || l.id !== own) &&
+      l.x1 > r.x &&
+      l.x0 < r.x + r.width &&
+      l.y1 > r.y &&
+      l.y0 < r.y + r.height &&
+      l.pts.some((b, i) => {
+        const a = l.pts[i - 1];
+        return !!a && Math.max(a.x, b.x) > r.x && Math.min(a.x, b.x) < r.x + r.width && Math.max(a.y, b.y) > r.y && Math.min(a.y, b.y) < r.y + r.height;
+      }),
   );
+/** Whether the route comes within `d` of the point. */
+const within = (p: Point, l: Line, d: number) => Math.hypot(Math.max(l.x0 - p.x, 0, p.x - l.x1), Math.max(l.y0 - p.y, 0, p.y - l.y1)) < d && distance(p, l.pts) < d;
 /** Distance from a point to the nearest segment of a polyline. */
 function distance(p: Point, pts: Point[]): number {
   let best = Infinity;
@@ -28,16 +54,35 @@ function distance(p: Point, pts: Point[]): number {
   return best;
 }
 const pillAt = (p: Point, w: number): Rect => ({ x: p.x - w / 2, y: p.y - LABEL_H / 2, width: w, height: LABEL_H });
+/** Room kept between a label and the edge of the diagram. */
+const EDGE_ROOM = 16;
+
+/**
+ * The diagram's bounds, grown to hold any label that hangs past the right or bottom edge: a pill beside an outer
+ * run can reach past what the cards and routes need. (Nothing is placed past the left or top edge.)
+ */
+export function boundsWithLabels<B extends { width: number; height: number }>(bounds: B, edges: { id: string; label?: string }[], labels: Record<string, Point>): B {
+  let { width, height } = bounds;
+  for (const e of edges) {
+    const p = labels[e.id];
+    if (!p || !e.label) continue;
+    width = Math.max(width, round(p.x + labelWidth(e.label) / 2 + EDGE_ROOM));
+    height = Math.max(height, round(p.y + LABEL_H / 2 + EDGE_ROOM));
+  }
+  return { ...bounds, width, height };
+}
 
 /** A group frame: labels keep off its border and its title. */
 export interface LabelFrame {
   rect: Rect;
   /** height of the title band along the frame's top */
   band: number;
+  /** the title's width from the frame's left edge, when it is longer than the usual strip */
+  title?: number;
 }
 /** Where along its route a label should sit: by the target on a fan-out, by the source on a fan-in. */
 type Bias = 'start' | 'mid' | 'end';
-// The frame title's box: the viewer's title is short, so a fixed strip from the corner covers it.
+// The frame title's box: most titles are short, so a strip from the corner covers them; a longer one says so.
 const TITLE = { width: 160, height: 28 };
 
 /** Frame borders as closed polylines, and the strips their titles take. */
@@ -50,7 +95,7 @@ function frameObstacles(frames: LabelFrame[]): { lines: Point[][]; titles: Rect[
       { x: r.x, y: r.y + r.height },
       { x: r.x, y: r.y },
     ]),
-    titles: frames.map(({ rect: r, band }) => ({ x: r.x, y: r.y, width: Math.min(r.width, TITLE.width), height: Math.max(band, TITLE.height) })),
+    titles: frames.map(({ rect: r, band, title = 0 }) => ({ x: r.x, y: r.y, width: Math.min(r.width, Math.max(title, TITLE.width)), height: Math.max(band, TITLE.height) })),
   };
 }
 
@@ -95,8 +140,8 @@ export function placeLabels(
   const { lines: borders, titles } = frameObstacles(frames);
   const cards = [...cardRects, ...titles];
   const bias = biases(edges);
-  const rivals = (id: string) => Object.entries(routes).flatMap(([k, pts]) => (k === id ? [] : [pts]));
-  const others = (id: string) => [...rivals(id), ...borders];
+  const rivals = Object.entries(routes).map(([id, pts]) => line(pts, id));
+  const lines = [...rivals, ...borders.map((pts) => line(pts))];
   const taken: Rect[] = [];
   const labels: Record<string, Point> = {};
   if (keepMidpoints) {
@@ -104,7 +149,7 @@ export function placeLabels(
       if (bias.get(e.id) !== 'mid') continue;
       const p = polylineMidpoint(routes[e.id]!);
       const pill = pillAt(p, labelWidth(e.label!));
-      if (cards.some((r) => overlaps(pill, r)) || taken.some((r) => overlaps(pill, r)) || crossed(pill, others(e.id))) continue;
+      if (cards.some((r) => overlaps(pill, r)) || taken.some((r) => overlaps(pill, r)) || crossed(pill, lines, e.id)) continue;
       // Claimed now, so a later label whose midpoint lands here is the one that moves.
       taken.push(pill);
       labels[e.id] = { x: round(p.x), y: round(p.y) };
@@ -113,14 +158,14 @@ export function placeLabels(
   // Runs an edge has to itself first, for every label, before any label settles beside a trunk it shares.
   for (const e of labelled) {
     if (labels[e.id]) continue;
-    const spot = findLabelSpot(routes[e.id]!, e.label!, cards, taken, others(e.id), bias.get(e.id), rivals(e.id));
+    const spot = findLabelSpot(routes[e.id]!, e.label!, cards, taken, lines, bias.get(e.id), rivals, false, e.id);
     if (spot) labels[e.id] = spot;
   }
   let misfit = 0;
   let unseated = 0;
   for (const e of labelled) {
     if (labels[e.id]) continue;
-    const spot = findLabelSpot(routes[e.id]!, e.label!, cards, taken, others(e.id), bias.get(e.id), rivals(e.id), true);
+    const spot = findLabelSpot(routes[e.id]!, e.label!, cards, taken, lines, bias.get(e.id), rivals, true, e.id);
     if (spot) labels[e.id] = spot;
     else {
       misfit = Math.max(misfit, labelWidth(e.label!));
@@ -138,17 +183,19 @@ export function placeLabels(
 }
 
 /** A spot that fits, claimed in `taken`; null when none does. */
-export function findLabelSpot(
+function findLabelSpot(
   points: Point[],
   text: string,
   cards: Rect[],
   taken: Rect[],
-  lines: Point[][] = [],
+  lines: Line[] = [],
   bias: Bias = 'mid',
   /** other edges' routes: a spot nearer one of them than its own would read as naming that edge */
-  rivals: Point[][] = [],
+  rivals: Line[] = [],
   /** whether the label may hang off a run a rival also takes: a trunk the edge shares */
   shared = false,
+  /** the edge's id, whose own route in `lines` and `rivals` doesn't count */
+  own?: string,
 ): Point | null {
   const w = labelWidth(text);
   let best: { p: Point; score: number } | null = null;
@@ -172,8 +219,11 @@ export function findLabelSpot(
         const at = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
         const p = { x: round(at.x + dx), y: round(at.y + dy) };
         const pill = pillAt(p, w);
-        if (cards.some((r) => overlaps(pill, r)) || taken.some((r) => overlaps(pill, r)) || crossed(pill, lines)) continue;
-        if (rivals.some((r) => distance(p, r) < distance(p, points) || (!shared && distance(at, r) < 0.5))) continue;
+        // Off the left or top edge there is no diagram to grow into.
+        if (pill.x < 0 || pill.y < 0) continue;
+        if (cards.some((r) => overlaps(pill, r)) || taken.some((r) => overlaps(pill, r)) || crossed(pill, lines, own)) continue;
+        const mine = distance(p, points);
+        if (rivals.some((r) => r.id !== own && (within(p, r, mine) || (!shared && within(at, r, 0.5))))) continue;
         // Longer and horizontal runs first; off-centre and off-line spots lose a little. A biased label goes as near
         // its far end as it fits instead.
         const reach = bias === 'end' ? total - (from + t * len) : bias === 'start' ? from + t * len : null;

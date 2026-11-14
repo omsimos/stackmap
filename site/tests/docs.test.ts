@@ -1,10 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { DIAGRAM_KINDS } from '@stackmap/core';
+import { DIAGRAM_KINDS, KIND_LABELS } from '@stackmap/core';
 import { EXAMPLES, exampleHref } from '../lib/catalog';
 import { diagnosticCodes } from '../lib/data/codes';
 import { DOC_PAGES, neighbours } from '../lib/docs-nav';
+import { schemaReference } from '../lib/data/schema-ref';
+import { fieldWords, searchFields } from '../lib/schema-page';
 import { ROUTES } from '../lib/seo';
+import { article } from '../lib/words';
 
 describe('docs navigation', () => {
   it('has every docs page the sitemap does, the kinds included', () => {
@@ -41,5 +44,22 @@ describe('diagnostic codes', () => {
 describe('example pages', () => {
   it('gives each example its own address', () => {
     expect(new Set(EXAMPLES.map(exampleHref)).size).toBe(EXAMPLES.length);
+  });
+
+  it('names each kind with the article it takes', () => {
+    expect(DIAGRAM_KINDS.map((k) => `${article(KIND_LABELS[k].toLowerCase(), true)} ${KIND_LABELS[k].toLowerCase()}`)).toEqual([
+      'An architecture',
+      'A dataflow',
+      'A workflow',
+      'A lifecycle',
+      'A sequence',
+    ]);
+  });
+});
+
+describe('docs search index', () => {
+  it('lists no schema field twice', () => {
+    const rows = searchFields(schemaReference()).map(({ field, place }) => `${place.anchor} · ${fieldWords(field)}`);
+    expect(rows.filter((r, i) => rows.indexOf(r) !== i)).toEqual([]);
   });
 });
