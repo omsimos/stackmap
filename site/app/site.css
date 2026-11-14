@@ -4,8 +4,10 @@
 [id] {
   scroll-margin-top: 96px;
 }
+/* Only moves made on the page glide. `settled` comes after the load (lib/theme.ts), so a page opened at a #hash is
+   there at once: a glide still under way when ScrollTrigger first measures is cut short where it stands. */
 @media (prefers-reduced-motion: no-preference) {
-  html {
+  html.settled {
     scroll-behavior: smooth;
   }
 }

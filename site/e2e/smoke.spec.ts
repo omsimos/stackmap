@@ -265,6 +265,8 @@ test('with the walkthrough pinned, a hash lands on its section, a reload keeps i
   await page.goto('/#50%');
   await expect(page.locator('.how-pin')).toHaveAttribute('data-live', 'true');
   expect(errors).toEqual([]);
+  // Arrivals below are immediate; once the page has loaded, moves within it glide.
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior)).toBe('smooth');
   // From another page, loaded and then through the router: both end below the runway, on the section.
   await page.goto('/docs');
   await page.goto('/#install');

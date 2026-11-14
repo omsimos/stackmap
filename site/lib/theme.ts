@@ -21,3 +21,7 @@ export function themeCss(): string {
 // Runs in <head> before the page paints, so a stored choice never flashes the other theme first. `js` tells the CSS
 // that script runs, so what it will animate in can start hidden instead of showing and then hiding.
 export const THEME_SCRIPT = `document.documentElement.classList.add('js');try{var t=localStorage.getItem(${JSON.stringify(THEME_KEY)});if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}`;
+
+// Marks the page as loaded a frame after the load event, when the browser has made its own scroll to a #hash:
+// site.css turns smooth scrolling on from then.
+export const SETTLED_SCRIPT = `addEventListener('load',function(){requestAnimationFrame(function(){document.documentElement.classList.add('settled')})})`;
