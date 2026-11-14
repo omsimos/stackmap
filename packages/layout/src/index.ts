@@ -149,18 +149,51 @@ const rootOptions = (direction: Direction, compact: boolean, large: boolean): Re
   'org.eclipse.elk.json.edgeCoords': 'ROOT',
 });
 
+const CANVAS = { width: 1060, aspect: 1.4 } as const;
 /**
- * Layout width (padding included) past which a ~1060px canvas fits the diagram below ~60% zoom, so the
- * layout is redone with wrapping. ELK's own wrap decision is scale-free (aspect ratio only) and would
- * also fold a short two-node chain, hence the width gate.
+ * Layout length along the flow (padding included) past which the canvas fits the diagram below ~65% zoom, so the
+ * layout is redone with wrapping, which folds that axis: the width left to right, the height top-down. ELK's own wrap
+ * decision is scale-free (aspect ratio only) and would also fold a short two-node chain, hence the gate.
  */
-const MAX_UNWRAPPED_WIDTH = 1600;
+const maxUnwrapped = (direction: Direction) => (direction === 'RIGHT' ? 1600 : Math.round(1600 / CANVAS.aspect));
+const along = (direction: Direction, size: { width?: number; height?: number }) => (direction === 'RIGHT' ? size.width : size.height) ?? 0;
+const FOLD_GAIN = 1.15;
+/** The zoom at which a layout fits the canvas. */
+const fit = (size: { width?: number; height?: number }) => Math.min(CANVAS.width / (size.width || 1), CANVAS.width / CANVAS.aspect / (size.height || 1));
 
 const wrapOptions: Record<string, string> = {
   'elk.layered.wrapping.strategy': 'SINGLE_EDGE',
-  'elk.aspectRatio': '1.4',
+  'elk.aspectRatio': String(CANVAS.aspect),
   'elk.layered.wrapping.additionalEdgeSpacing': '40',
 };
+
+/**
+ * The least a layout can measure along the flow: its longest chain of cards, each a layer gap past the one before.
+ * Lets a large diagram be known too long without the ELK run that would measure it.
+ */
+function leastAlong(draft: DiagramDraft, direction: Direction, variant: 'compact' | 'full', gap: number, reversed: Set<string>): number {
+  const size = new Map(draft.nodes.map((n) => [n.id, along(direction, cardSize(n.card, variant))]));
+  const out = new Map<string, string[]>(draft.nodes.map((n) => [n.id, []]));
+  const waiting = new Map<string, number>(draft.nodes.map((n) => [n.id, 0]));
+  for (const e of draft.edges) {
+    if (e.from === e.to) continue;
+    const [a, b] = reversed.has(e.id) ? [e.to, e.from] : [e.from, e.to];
+    out.get(a)!.push(b);
+    waiting.set(b, waiting.get(b)! + 1);
+  }
+  const reach = new Map<string, number>(draft.nodes.map((n) => [n.id, size.get(n.id)!]));
+  const ready = draft.nodes.filter((n) => waiting.get(n.id) === 0).map((n) => n.id);
+  let longest = 0;
+  for (let id = ready.pop(); id !== undefined; id = ready.pop()) {
+    longest = Math.max(longest, reach.get(id)!);
+    for (const next of out.get(id)!) {
+      reach.set(next, Math.max(reach.get(next)!, reach.get(id)! + gap + size.get(next)!));
+      waiting.set(next, waiting.get(next)! - 1);
+      if (waiting.get(next) === 0) ready.push(next);
+    }
+  }
+  return longest + 80;
+}
 
 /**
  * Edges laid out against their drawn direction: every reply (`return`), then whatever still closes a cycle, found by
@@ -325,17 +358,21 @@ export async function layoutDiagram(draft: DiagramDraft): Promise<LaidOutDiagram
         widen(graph);
       }
       const opts = graph.layoutOptions!;
-      // A large diagram is laid out once: ELK's own wrap decision (by aspect ratio alone) stands in for the width gate,
-      // which needs a first run to measure, and the flow order isn't needed (no flips).
-      if (large && !stages) {
-        return { laid: collect(draft, await elk.layout({ ...structuredClone(graph), layoutOptions: { ...opts, ...wrapOptions } }), direction, false, reversed), flat: null };
+      const wrapped = () => elk.layout({ ...structuredClone(graph), layoutOptions: { ...opts, ...wrapOptions } });
+      const limit = maxUnwrapped(direction);
+      // A large diagram already known too long is laid out once, wrapped: the run that would measure it costs as much
+      // again, and the flow order isn't needed (no flips).
+      if (large && !stages && leastAlong(draft, direction, variant, Number(opts[LAYER_GAP]), reversed) > limit) {
+        return { laid: collect(draft, await wrapped(), direction, false, reversed), flat: null };
       }
       const flat = await elk.layout(structuredClone(graph));
       // Wrapping would fold stages back onto each other.
-      const wrap = (flat.width ?? 0) > MAX_UNWRAPPED_WIDTH && !stages;
-      const result = wrap ? await elk.layout({ ...structuredClone(graph), layoutOptions: { ...opts, ...wrapOptions } }) : flat;
+      const folded = along(direction, flat) > limit && !stages ? await wrapped() : null;
+      // Folding trades one axis for the other and sends edges back across the diagram: kept only when the diagram
+      // then reads clearly larger on the canvas.
+      const wrap = folded !== null && fit(folded) > FOLD_GAIN * fit(flat);
       // `flat` only when it isn't what was collected: the layout before wrapping.
-      return { laid: collect(draft, result, direction, stages !== null, reversed), flat: wrap ? flat : null };
+      return { laid: collect(draft, wrap ? folded : flat, direction, stages !== null, reversed), flat: wrap ? flat : null };
     };
     const first = await run();
     let laid = first.laid;

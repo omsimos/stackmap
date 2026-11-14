@@ -42,8 +42,10 @@ describe.each(laid)('layout quality of %s', (_name, draft, out) => {
         if (sameRow && t.x + t.width <= s.x) expect(near(end.x, t.x + t.width), `${e.id} enters its right side`).toBe(true);
         if (sameRow && t.x >= s.x + s.width) expect(near(end.x, t.x), `${e.id} enters its left side`).toBe(true);
       } else {
-        if (t.y + t.height <= s.y) expect(near(end.y, t.y + t.height), `${e.id} enters its bottom`).toBe(true);
-        if (t.y >= s.y + s.height) expect(near(end.y, t.y), `${e.id} enters its top`).toBe(true);
+        // Same column only, for the same reason.
+        const sameColumn = s.x < t.x + t.width && t.x < s.x + s.width;
+        if (sameColumn && t.y + t.height <= s.y) expect(near(end.y, t.y + t.height), `${e.id} enters its bottom`).toBe(true);
+        if (sameColumn && t.y >= s.y + s.height) expect(near(end.y, t.y), `${e.id} enters its top`).toBe(true);
       }
     }
   });

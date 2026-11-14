@@ -110,6 +110,34 @@ describe('layoutDiagram', () => {
     expect(width / height).toBeLessThanOrEqual(2.6);
   });
 
+  const chain = (n: number): Pick<DiagramDraft, 'nodes' | 'edges'> => ({
+    nodes: Array.from({ length: n }, (_, i) => node(`c${i}`)),
+    edges: Array.from({ length: n - 1 }, (_, i) => ({ id: `e${i}`, from: `c${i}`, to: `c${i + 1}` })),
+  });
+
+  it('wraps a tall top-down diagram on its height, the axis a fold shortens', async () => {
+    const { width, height } = (await layoutDiagram(draft({ direction: 'DOWN', ...chain(16) }))).bounds;
+    // One column is 360 by 2184.
+    expect(height).toBeLessThan(1200);
+    expect(width).toBeGreaterThan(360);
+  });
+
+  it('wraps a top-down chain alike on either side of the large-diagram limit', async () => {
+    const [under, over] = await Promise.all([60, 61].map(async (n) => (await layoutDiagram(draft({ direction: 'DOWN', ...chain(n) }))).bounds));
+    expect(under!.width).toBe(over!.width);
+    expect(Math.abs(under!.height - over!.height)).toBeLessThan(200);
+  });
+
+  it('leaves a large diagram that is short along the flow unwrapped', async () => {
+    // Large by its edges alone; ELK's own wrap decision goes by aspect ratio and would fold this strip.
+    const edges = Array.from({ length: 184 }, (_, i) => ({ id: `e${i}`, from: `c${i % 3}`, to: `c${(i % 3) + 1}` }));
+    const out = await layoutDiagram(draft({ density: 'compact', nodes: chain(4).nodes, edges }));
+    expect(out.bounds.width).toBeLessThanOrEqual(1600);
+    const tops = out.draft.nodes.map((n) => out.nodes[n.id]!.x);
+    expect(tops).toEqual([...tops].sort((a, b) => a - b));
+    expect(new Set(tops).size).toBe(4);
+  });
+
   it('keeps a short chain on one row', async () => {
     const out = await layoutDiagram(
       draft({ nodes: [node('a'), node('b'), node('c')], edges: [{ id: 'ab', from: 'a', to: 'b' }, { id: 'bc', from: 'b', to: 'c' }] }),
