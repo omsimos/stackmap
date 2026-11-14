@@ -54,6 +54,23 @@ function distance(p: Point, pts: Point[]): number {
   return best;
 }
 const pillAt = (p: Point, w: number): Rect => ({ x: p.x - w / 2, y: p.y - LABEL_H / 2, width: w, height: LABEL_H });
+/** Room kept between a label and the edge of the diagram. */
+const EDGE_ROOM = 16;
+
+/**
+ * The diagram's bounds, grown to hold any label that hangs past the right or bottom edge: a pill beside an outer
+ * run can reach past what the cards and routes need. (Nothing is placed past the left or top edge.)
+ */
+export function boundsWithLabels<B extends { width: number; height: number }>(bounds: B, edges: { id: string; label?: string }[], labels: Record<string, Point>): B {
+  let { width, height } = bounds;
+  for (const e of edges) {
+    const p = labels[e.id];
+    if (!p || !e.label) continue;
+    width = Math.max(width, round(p.x + labelWidth(e.label) / 2 + EDGE_ROOM));
+    height = Math.max(height, round(p.y + LABEL_H / 2 + EDGE_ROOM));
+  }
+  return { ...bounds, width, height };
+}
 
 /** A group frame: labels keep off its border and its title. */
 export interface LabelFrame {
@@ -202,6 +219,8 @@ function findLabelSpot(
         const at = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
         const p = { x: round(at.x + dx), y: round(at.y + dy) };
         const pill = pillAt(p, w);
+        // Off the left or top edge there is no diagram to grow into.
+        if (pill.x < 0 || pill.y < 0) continue;
         if (cards.some((r) => overlaps(pill, r)) || taken.some((r) => overlaps(pill, r)) || crossed(pill, lines, own)) continue;
         const mine = distance(p, points);
         if (rivals.some((r) => r.id !== own && (within(p, r, mine) || (!shared && within(at, r, 0.5))))) continue;

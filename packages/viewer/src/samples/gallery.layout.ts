@@ -2769,7 +2769,7 @@ export const galleryLayouts: Record<string, LaidOutDiagram> = {
       }
     },
     "bounds": {
-      "width": 1420,
+      "width": 1444,
       "height": 736
     }
   },

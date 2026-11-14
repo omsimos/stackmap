@@ -1,5 +1,5 @@
 import { assignColumns, backEdges, cardSize, COMPACT, round, type DiagramDraft, type DiagramEdge, type LaidOutDiagram, type Point, type Rect } from '@stackmap/core';
-import { labelWidth, placeLabels } from './labels';
+import { boundsWithLabels, labelWidth, placeLabels } from './labels';
 
 export { assignColumns, backEdges } from '@stackmap/core';
 import { nudge, routeEdges, STUB, type PortChoice, type RouteRequest } from './route';
@@ -192,6 +192,6 @@ export function layoutLanes(draft: DiagramDraft): LaidOutDiagram {
     lanes: laneRects,
     phases: phaseRects,
     labels,
-    bounds: { width: round(bandX + bandW + PAD), height: round(height) },
+    bounds: boundsWithLabels({ width: round(bandX + bandW + PAD), height: round(height) }, draft.edges, labels),
   };
 }
