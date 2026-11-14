@@ -28,8 +28,12 @@ const GROUP_LAYER_GAP = 80;
  * against the flow or make room for labels: each ELK run grows roughly with the square of the graph, and a diagram
  * that size is read zoomed in anyway. */
 const LARGE_EDGES = 3 * LARGE_DIAGRAM;
-/** A diagram the layout treats as large: the CLI says so before laying one out, since it can still take a while. */
-export const isLarge = (draft: DiagramDraft) => draft.nodes.length > LARGE_DIAGRAM || draft.edges.length > LARGE_EDGES;
+/**
+ * A diagram the layout treats as large: the CLI says so before laying one out, since it can still take a while.
+ * Never a lane or sequence kind: those have their own layouts, which take a second at their largest.
+ */
+export const isLarge = (draft: DiagramDraft) =>
+  !isLaneKind(draft.kind) && draft.kind !== 'sequence' && (draft.nodes.length > LARGE_DIAGRAM || draft.edges.length > LARGE_EDGES);
 const LAYER_GAP = 'elk.layered.spacing.nodeNodeBetweenLayers';
 const EDGE_RUN = 'elk.layered.spacing.edgeNodeBetweenLayers';
 const GROUP_PREFIX = 'group:';
