@@ -1,4 +1,4 @@
-import { usesCompactCards, type DiagramDraft } from '@stackmap/core';
+import { LARGE_DIAGRAM, usesCompactCards, type DiagramDraft } from '@stackmap/core';
 import type { Diagnostic } from '../diagnostics';
 
 function duplicates(items: { id: string }[] | undefined, collection: string): Diagnostic[] {
@@ -61,8 +61,6 @@ function cycles(nodes: string[], edges: [string, string][]): string[][] {
   for (const n of nodes) if (!idx.has(n)) visit(n);
   return out;
 }
-
-const LARGE_DIAGRAM = 60;
 
 /** Size, duplicate ids and row labels, orphans, self-loops, parallel edges, dataflow cycles, empty views and groups. */
 export function semanticsDiagnostics(d: DiagramDraft): Diagnostic[] {
