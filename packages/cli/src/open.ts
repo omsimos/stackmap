@@ -1,13 +1,22 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 /**
  * One way to open a file. `orAt` finds `cmd` when it isn't on the PATH. `startFile` is a file for PowerShell to
- * start (WSL): its Windows path goes on the end of `args`, as an encoded command. `wait` is how long, in ms, the
- * opener gets to exit before it counts as having handed the file off.
+ * start (WSL): its Windows path goes on the end of `args`, as an encoded command; `windowsFile` is one whose Windows
+ * path goes there as it is. `wait` is how long, in ms, the opener gets to exit before it counts as having handed the
+ * file off. `blind` marks an opener whose exit code says nothing, so that having started is all it can report.
  */
-export type Opener = { cmd: string; args: string[]; orAt?: () => string; startFile?: string; wait?: number };
+export type Opener = {
+  cmd: string;
+  args: string[];
+  orAt?: () => string;
+  startFile?: string;
+  windowsFile?: string;
+  wait?: number;
+  blind?: true;
+};
 
 const NOT_FOUND = 'not found';
 // xdg-open can turn into the browser itself and never exit, so a short wait has to count as a hand-off.
@@ -17,19 +26,26 @@ const HANDED_OFF = 3000;
 const WINDOWS_START = 15000;
 
 // WSL leaves the Windows directories off the PATH under `appendWindowsPath=false`, and `automount.root` moves /mnt.
-function powershell(): string {
+const inWindows = (path: string) => (): string => {
   try {
-    return wslpath('-u', 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe');
+    return wslpath('-u', `C:\\Windows\\${path}`);
   } catch {
-    return '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe';
+    return `/mnt/c/Windows/${path.replaceAll('\\', '/')}`;
   }
-}
+};
+
+const INTEROP = ['/proc/sys/fs/binfmt_misc/WSLInterop', '/proc/sys/fs/binfmt_misc/WSLInterop-late'];
 
 /** Whether this Linux is WSL, where a stock distro has no xdg-open but Windows has a browser. */
-export function isWsl(env: NodeJS.ProcessEnv = process.env): boolean {
+export function isWsl(
+  env: NodeJS.ProcessEnv = process.env,
+  read: (path: string) => string = (path) => readFileSync(path, 'utf8'),
+  has: (path: string) => boolean = existsSync,
+): boolean {
   if (env.WSL_DISTRO_NAME || env.WSL_INTEROP) return true;
   try {
-    return /microsoft/i.test(readFileSync('/proc/version', 'utf8'));
+    // A Docker Desktop container runs on the WSL kernel too, but only WSL itself registers the Windows interop.
+    return /microsoft/i.test(read('/proc/version')) && INTEROP.some(has);
   } catch {
     return false;
   }
@@ -53,14 +69,16 @@ export function browserCommands(
   // nothing, which would end the chain. PowerShell, unlike explorer.exe, exits non-zero when it couldn't start the file.
   const start: Opener = {
     cmd: 'powershell.exe',
-    orAt: powershell,
+    orAt: inWindows('System32\\WindowsPowerShell\\v1.0\\powershell.exe'),
     args: ['-NoProfile', '-NonInteractive', '-EncodedCommand'],
     startFile: file,
     wait: WINDOWS_START,
   };
   // wslview hands the path to PowerShell with quoting of its own, so it only gets paths PowerShell reads literally.
   const viaWslview: Opener[] = /[$`'"‘’‚‛“”„]/.test(file) ? [] : [{ cmd: 'wslview', args: [file], wait: WINDOWS_START }];
-  return [...viaWslview, start, { cmd: 'xdg-open', args: [file] }];
+  // Where policy blocks PowerShell, explorer.exe still opens the file; it exits 1 either way.
+  const explorer: Opener = { cmd: 'explorer.exe', orAt: inWindows('explorer.exe'), args: [], windowsFile: file, wait: WINDOWS_START, blind: true };
+  return [...viaWslview, start, explorer, { cmd: 'xdg-open', args: [file] }];
 }
 
 export function startCommand(windowsPath: string): string {
@@ -96,23 +114,25 @@ export async function openWith(
 }
 
 async function run(
-  { cmd, args, orAt, startFile, wait = HANDED_OFF }: Opener,
+  { cmd, args, orAt, startFile, windowsFile, wait = HANDED_OFF, blind }: Opener,
   windowsPath: (file: string) => string,
 ): Promise<string | null> {
-  if (startFile !== undefined) {
+  const file = startFile ?? windowsFile;
+  if (file !== undefined) {
     try {
-      args = [...args, Buffer.from(startCommand(windowsPath(resolve(startFile))), 'utf16le').toString('base64')];
+      const path = windowsPath(resolve(file));
+      args = [...args, startFile === undefined ? path : Buffer.from(startCommand(path), 'utf16le').toString('base64')];
     } catch (e) {
       return (e as NodeJS.ErrnoException).code === 'ENOENT' ? 'wslpath not found' : "wslpath couldn't convert the path";
     }
   }
-  let why = await launch(cmd, args, wait);
-  if (why === NOT_FOUND && orAt) why = await launch(orAt(), args, wait);
+  let why = await launch(cmd, args, wait, blind);
+  if (why === NOT_FOUND && orAt) why = await launch(orAt(), args, wait, blind);
   return why === null ? null : `${cmd} ${why}`;
 }
 
 /** Resolves null once the command exits cleanly or is still running after `wait` ms, else what went wrong. */
-function launch(cmd: string, args: string[], wait: number): Promise<string | null> {
+function launch(cmd: string, args: string[], wait: number, blind = false): Promise<string | null> {
   return new Promise((done) => {
     const child = spawn(cmd, args, { stdio: 'ignore', detached: true, windowsVerbatimArguments: cmd === 'cmd' });
     const timer = setTimeout(() => done(null), wait);
@@ -121,7 +141,7 @@ function launch(cmd: string, args: string[], wait: number): Promise<string | nul
       done(why);
     };
     child.once('error', (e) => finish((e as NodeJS.ErrnoException).code === 'ENOENT' ? NOT_FOUND : `failed (${e.message})`));
-    child.once('exit', (code, signal) => finish(code ? `exited with ${code}` : signal ? `was killed by ${signal}` : null));
+    child.once('exit', (code, signal) => finish(blind ? null : code ? `exited with ${code}` : signal ? `was killed by ${signal}` : null));
     child.unref();
   });
 }
