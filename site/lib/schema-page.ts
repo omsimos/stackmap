@@ -66,3 +66,22 @@ export function notePieces(field: SchemaField): Piece[] {
   }
   return pieces;
 }
+
+export const fieldWords = (f: SchemaField) => `${f.key} ${f.type} ${f.notes}`;
+
+/** The fields the docs search lists, each with the placement its result links to. */
+export function searchFields(sections: SchemaSection[]): { field: SchemaField; place: Placement }[] {
+  // The folded card parts share one anchor, so a field two of them define alike (a footer's left and right `icon`)
+  // would be the same result twice.
+  const seen = new Set<string>();
+  return sections.flatMap((section) => {
+    const place = PLACEMENTS[section.name];
+    if (!place) return [];
+    return section.fields.flatMap((field) => {
+      const row = `${place.anchor} ${fieldWords(field)}`;
+      if (seen.has(row)) return [];
+      seen.add(row);
+      return [{ field, place }];
+    });
+  });
+}

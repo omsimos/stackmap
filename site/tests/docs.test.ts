@@ -4,7 +4,8 @@ import { DIAGRAM_KINDS, KIND_LABELS } from '@stackmap/core';
 import { EXAMPLES, exampleHref } from '../lib/catalog';
 import { diagnosticCodes } from '../lib/data/codes';
 import { DOC_PAGES, neighbours } from '../lib/docs-nav';
-import { searchIndex } from '../lib/search-index';
+import { schemaReference } from '../lib/data/schema-ref';
+import { fieldWords, searchFields } from '../lib/schema-page';
 import { ROUTES } from '../lib/seo';
 import { article } from '../lib/words';
 
@@ -57,8 +58,8 @@ describe('example pages', () => {
 });
 
 describe('docs search index', () => {
-  it('lists no result twice', () => {
-    const rows = searchIndex().map((e) => `${e.title} · ${e.context} · ${e.href} · ${e.words}`);
+  it('lists no schema field twice', () => {
+    const rows = searchFields(schemaReference()).map(({ field, place }) => `${place.anchor} · ${fieldWords(field)}`);
     expect(rows.filter((r, i) => rows.indexOf(r) !== i)).toEqual([]);
   });
 });
