@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cardSize, type DiagramDraft, type DiagramNode, type Point, type Rect } from '@stackmap/core';
 import { commerceApi, groupedPlatform } from '@stackmap/core/samples';
-import { GROUP_LABEL_BAND, layoutDiagram, squared, STAGE_LABEL_BAND } from '../src/index';
+import { GROUP_LABEL_BAND, isLarge, layoutDiagram, squared, STAGE_LABEL_BAND } from '../src/index';
 import { STRESS } from './stress';
 
 const node = (id: string, extra: Partial<DiagramNode> = {}): DiagramNode => ({
@@ -25,6 +25,15 @@ describe('squared', () => {
 
   it('keeps a corner that comes as two points in the same place', () => {
     expect(squared([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])).toEqual([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }]);
+  });
+});
+
+describe('isLarge', () => {
+  it('holds past the node limit only for the kinds ELK lays out', () => {
+    const nodes = Array.from({ length: 61 }, (_, i) => node(`n${i}`));
+    expect(isLarge(draft({ nodes }))).toBe(true);
+    expect(isLarge(draft({ nodes: nodes.slice(1) }))).toBe(false);
+    for (const kind of ['workflow', 'lifecycle', 'sequence'] as const) expect(isLarge(draft({ kind, nodes })), kind).toBe(false);
   });
 });
 
