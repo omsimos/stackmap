@@ -173,7 +173,7 @@ export function layoutLanes(draft: DiagramDraft): LaidOutDiagram {
     })
     .sort((a, b) => a.order - b.order);
   const ends = Object.fromEntries(draft.edges.map((e) => [e.id, { from: e.from, to: e.to }]));
-  const routed = nudge(routeEdges(rects, requests, { xs, ys }, obstacles), ends);
+  const routed = nudge(routeEdges(rects, requests, { xs, ys }, obstacles), ends, Object.values(rects));
 
   const edges: Record<string, Point[]> = {};
   for (const e of draft.edges) {
