@@ -1768,7 +1768,7 @@ export const galleryLayouts: Record<string, LaidOutDiagram> = {
     "labels": {
       "e2": {
         "x": 580,
-        "y": 241
+        "y": 197.2
       },
       "e4": {
         "x": 1084,
@@ -1784,7 +1784,7 @@ export const galleryLayouts: Record<string, LaidOutDiagram> = {
       },
       "e8": {
         "x": 1476,
-        "y": 446.2
+        "y": 462.4
       },
       "e10": {
         "x": 1388,
@@ -1796,7 +1796,7 @@ export const galleryLayouts: Record<string, LaidOutDiagram> = {
       },
       "e13": {
         "x": 720,
-        "y": 515
+        "y": 610.4
       }
     },
     "bounds": {
@@ -2238,11 +2238,11 @@ export const galleryLayouts: Record<string, LaidOutDiagram> = {
     "labels": {
       "needs-approval": {
         "x": 813,
-        "y": 152
+        "y": 171.2
       },
       "approved": {
         "x": 715,
-        "y": 152
+        "y": 171.2
       },
       "review-blocked": {
         "x": 1020,
@@ -2250,11 +2250,11 @@ export const galleryLayouts: Record<string, LaidOutDiagram> = {
       },
       "execution-failed": {
         "x": 912,
-        "y": 278.8
+        "y": 319.6
       },
       "retry": {
         "x": 888,
-        "y": 312.4
+        "y": 163.6
       },
       "approval-cancelled": {
         "x": 780,
@@ -3755,15 +3755,15 @@ export const galleryLayouts: Record<string, LaidOutDiagram> = {
         "y": 353
       },
       "e6": {
-        "x": 1378.15,
+        "x": 1394.8,
         "y": 305
       },
       "e7": {
-        "x": 1455,
+        "x": 1483.8,
         "y": 130
       },
       "e8": {
-        "x": 1404.5,
+        "x": 1463.6,
         "y": 326
       }
     }
