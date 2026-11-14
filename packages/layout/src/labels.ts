@@ -214,8 +214,10 @@ function findLabelSpot(
     // (a pause/resume pair on parallel runs gets one pill above and one below).
     const beside = horizontal ? LABEL_H / 2 + 3 : w / 2 + 4;
     const offsets: [number, number][] = horizontal ? [[0, 0], [0, -beside], [0, beside]] : [[0, 0], [beside, 0], [-beside, 0]];
+    // The middle of the run first; a biased label, the end of the run nearer its far card.
+    const stops = bias === 'end' ? [0.8, 0.65, 0.5, 0.35, 0.2] : bias === 'start' ? [0.2, 0.35, 0.5, 0.65, 0.8] : [0.5, 0.35, 0.65, 0.2, 0.8];
     search: for (const [dx, dy] of offsets) {
-      for (const t of [0.5, 0.35, 0.65, 0.2, 0.8]) {
+      for (const t of stops) {
         const at = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
         const p = { x: round(at.x + dx), y: round(at.y + dy) };
         const pill = pillAt(p, w);

@@ -138,6 +138,17 @@ describe('labels by a group frame', () => {
   });
 });
 
+describe('a label on a fan-out or fan-in', () => {
+  const fan = (role: 'from' | 'to') => ['a', 'b', 'c'].map((id) => ({ id, label: 'calls', [role]: 'hub', [role === 'from' ? 'to' : 'from']: id }));
+  // One long clear run: the middle fits, and so does either end.
+  const routes = { a: [{ x: 0, y: 0 }, { x: 400, y: 0 }], b: [{ x: 0, y: 200 }, { x: 400, y: 200 }], c: [{ x: 0, y: 400 }, { x: 400, y: 400 }] };
+
+  it('takes the end of its run nearest the far card, not the middle', () => {
+    expect(placeLabels(fan('from'), routes, []).labels.a!.x).toBeGreaterThan(250);
+    expect(placeLabels(fan('to'), routes, []).labels.a!.x).toBeLessThan(150);
+  });
+});
+
 describe('labels on a fan-out', () => {
   it('sit on the far half of each edge, by the card they name, not by the shared source', async () => {
     for (const name of ['hub-down', 'hub-right'] as const) {
