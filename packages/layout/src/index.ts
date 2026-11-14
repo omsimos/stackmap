@@ -422,7 +422,7 @@ function collect(draft: DiagramDraft, result: ElkNode, direction: Direction, sta
 
   const bounds = { width: round(result.width ?? 0), height: round(result.height ?? 0) };
   if (!staged) return { draft, nodes, groups, edges, bounds };
-  return { draft, nodes, groups, edges, bounds, phases: stageBands(draft, nodes, direction) };
+  return { draft, nodes, groups, edges, bounds, phases: stageBands(draft, nodes, groups, direction) };
 }
 
 /**
@@ -510,32 +510,52 @@ function stagePartitions(draft: DiagramDraft): Map<string, number> {
     }
     if (!changed) break;
   }
-  // Partitions only order the top level; grouped nodes are left to the group's own layout.
+  // Partitions only order the top level; grouped nodes are left to the group's own layout. (ELK ignores a partition
+  // set on a group or inside one, so a group can't be held to a stage.)
   const grouped = new Set(draft.nodes.filter((n) => n.group !== undefined).map((n) => n.id));
   for (const n of draft.nodes) if (!part.has(n.id)) part.set(n.id, 0);
   for (const id of grouped) part.delete(id);
   return part;
 }
 
-/** One band per stage: its nodes' extent along the flow, the whole diagram across it, plus the label band. */
-function stageBands(draft: DiagramDraft, nodes: Record<string, Rect>, direction: Direction): Record<string, Rect> {
+/** Each group's cards, those of the groups nested in it included. */
+function groupMembers(draft: DiagramDraft): Map<string, string[]> {
+  const parent = new Map((draft.groups ?? []).map((g) => [g.id, g.parent]));
+  const out = new Map<string, string[]>((draft.groups ?? []).map((g) => [g.id, []]));
+  for (const n of draft.nodes) {
+    // The step count guards against a draft whose groups name each other as parent.
+    for (let g = n.group, steps = 0; g !== undefined && out.has(g) && steps <= parent.size; g = parent.get(g), steps++) out.get(g)!.push(n.id);
+  }
+  return out;
+}
+
+/**
+ * One band per stage: its nodes' extent along the flow, the whole diagram across it, plus the label band. Group
+ * frames count: across the flow all of them (a frame's title would otherwise sit under the stage labels), and along
+ * it the frames of groups whose cards are all in the stage.
+ */
+function stageBands(draft: DiagramDraft, nodes: Record<string, Rect>, groups: Record<string, Rect>, direction: Direction): Record<string, Rect> {
   const out: Record<string, Rect> = {};
-  const all = Object.values(nodes);
-  if (!all.length) return out;
+  if (!Object.keys(nodes).length) return out;
+  const all = [...Object.values(nodes), ...Object.values(groups)];
+  const members = [...groupMembers(draft)];
   const top = Math.min(...all.map((r) => r.y));
   const bottom = Math.max(...all.map((r) => r.y + r.height));
   const left = Math.min(...all.map((r) => r.x));
   const right = Math.max(...all.map((r) => r.x + r.width));
   for (const p of draft.phases ?? []) {
-    const members = (p.nodes ?? []).flatMap((id) => nodes[id] ?? []);
-    if (!members.length) continue;
+    const cards = (p.nodes ?? []).flatMap((id) => nodes[id] ?? []);
+    if (!cards.length) continue;
+    const own = new Set(p.nodes);
+    const frames = members.flatMap(([id, ns]) => (ns.length && ns.every((n) => own.has(n)) && groups[id] ? [groups[id]] : []));
+    const inside = [...cards, ...frames];
     if (direction === 'RIGHT') {
-      const x = Math.min(...members.map((r) => r.x)) - STAGE_PAD;
-      const x2 = Math.max(...members.map((r) => r.x + r.width)) + STAGE_PAD;
+      const x = Math.min(...inside.map((r) => r.x)) - STAGE_PAD;
+      const x2 = Math.max(...inside.map((r) => r.x + r.width)) + STAGE_PAD;
       out[p.id] = { x: round(x), y: round(top - STAGE_PAD - STAGE_LABEL_BAND), width: round(x2 - x), height: round(bottom - top + 2 * STAGE_PAD + STAGE_LABEL_BAND) };
     } else {
-      const y = Math.min(...members.map((r) => r.y)) - STAGE_PAD;
-      const y2 = Math.max(...members.map((r) => r.y + r.height)) + STAGE_PAD;
+      const y = Math.min(...inside.map((r) => r.y)) - STAGE_PAD;
+      const y2 = Math.max(...inside.map((r) => r.y + r.height)) + STAGE_PAD;
       out[p.id] = { x: round(left - STAGE_PAD - 160), y: round(y), width: round(right - left + 2 * STAGE_PAD + 160), height: round(y2 - y) };
     }
   }
