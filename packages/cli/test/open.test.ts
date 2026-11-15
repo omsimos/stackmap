@@ -9,7 +9,7 @@ const posix = it.skipIf(process.platform === 'win32');
 
 describe('browserCommands', () => {
   it('uses the native opener on darwin and linux', () => {
-    expect(browserCommands('/tmp/a b.html', 'darwin')).toEqual([{ cmd: 'open', args: ['/tmp/a b.html'] }]);
+    expect(browserCommands('/tmp/a b.html', 'darwin')).toEqual([{ cmd: 'open', args: ['/tmp/a b.html'], wait: 15000 }]);
     expect(browserCommands('/tmp/a.html', 'linux', false)).toEqual([{ cmd: 'xdg-open', args: ['/tmp/a.html'] }]);
   });
 

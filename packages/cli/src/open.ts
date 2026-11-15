@@ -24,6 +24,9 @@ const HANDED_OFF = 3000;
 // A Windows program started through WSL interop can take longer than that to load, and its exit code is the only
 // sign that nothing opened.
 const WINDOWS_START = 15000;
+// macOS `open` returns once the browser has the file, which can take seconds while the browser wakes. Exiting before
+// then can leave it to be killed with the caller's shell (an agent's tool), so the file never opens and no warning shows.
+const MAC_OPEN = 15000;
 
 // WSL leaves the Windows directories off the PATH under `appendWindowsPath=false`, and `automount.root` moves /mnt.
 const inWindows = (path: string) => (): string => {
@@ -57,7 +60,7 @@ export function browserCommands(
   platform: NodeJS.Platform = process.platform,
   wsl = platform === 'linux' && isWsl(),
 ): Opener[] | { refused: string } {
-  if (platform === 'darwin') return [{ cmd: 'open', args: [file] }];
+  if (platform === 'darwin') return [{ cmd: 'open', args: [file], wait: MAC_OPEN }];
   // `start` is a cmd builtin, and its first quoted argument is the window title.
   // Quoted, cmd takes & | < > ^ ( ) literally; it still expands %VAR% inside quotes, and " would end the quoting.
   if (platform === 'win32')
