@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -26,6 +26,28 @@ test('a delivered file renders from file:// with no network', async ({ page }) =
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Platform');
   expect(await page.evaluate(() => document.fonts.check("500 13.5px 'Geist'"))).toBe(true);
   expect(requests).toEqual([]);
+});
+
+test('Export saves the delivered page as HTML that opens offline, and the mark links to the website', async ({ page }) => {
+  const dir = mkdtempSync(join(tmpdir(), 'stackmap-e2e-'));
+  const input = join(dir, 'platform.json');
+  writeFileSync(input, JSON.stringify(groupedPlatform));
+  execFileSync('node', [fileURLToPath(new URL('../dist/cli.js', import.meta.url)), 'deliver', input, '-o', join(dir, 'delivered.html')]);
+  await page.goto(pathToFileURL(join(dir, 'delivered.html')).href);
+  await expect(page.locator('.sm-card')).toHaveCount(groupedPlatform.nodes.length);
+  await expect(page.getByRole('link', { name: /stackmap website/ })).toHaveAttribute('href', 'https://stackmap.omsimos.com/');
+
+  await page.getByRole('button', { name: 'Export' }).click();
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: /^HTML/ }).click()]);
+  expect(dl.suggestedFilename()).toBe('platform.html');
+  const saved = join(dir, 'saved.html');
+  await dl.saveAs(saved);
+  // The page as delivered, not as rendered: the viewer's own markup is left out and rebuilt on open.
+  expect(readFileSync(saved, 'utf8')).toMatch(/<div id="root"><\/div>/);
+
+  await page.goto(pathToFileURL(saved).href);
+  await expect(page.locator('.sm-card')).toHaveCount(groupedPlatform.nodes.length);
+  await expect(page).toHaveTitle('Platform · stackmap');
 });
 
 test('the bare template says no diagram is embedded', async ({ page }) => {

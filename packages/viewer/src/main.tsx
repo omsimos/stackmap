@@ -1,3 +1,5 @@
+// First, so it reads the page before anything below changes it.
+import './standalone';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { tokens, tokensToCss } from '@stackmap/core';

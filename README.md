@@ -55,7 +55,7 @@ The agent writes `.stackmap/<name>/diagram.json`, validates and repairs it, and 
 - **Find:** search titles, ids and types; the **lens** dims the node types you don't need.
 - **Guided views:** tabs the agent defines, like "Checkout path", that focus one part of the diagram. **Present** steps through them full screen.
 - **Flow:** **Play** sends pulses along whatever you're looking at: the whole diagram, a view, a trace or a route, hop by hop.
-- **Share:** the URL keeps the view, selection, route and playback. Export PNG, JPEG, WebP, SVG, or a short video of the flow.
+- **Share:** the URL keeps the view, selection, route and playback. Export PNG, JPEG, WebP, SVG, a short video of the flow, or the diagram again as one offline HTML file.
 - **Keyboard:** `/` search, `R` route, `F` present, `P` play, `M` minimap, `Esc` clear; Tab and the arrow keys reach everything else.
 - **Themes:** dark and light, and animations respect reduced motion.
 
