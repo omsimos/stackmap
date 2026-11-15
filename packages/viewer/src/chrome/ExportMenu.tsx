@@ -6,6 +6,7 @@ import { popIn } from '../motion/motion';
 import { PANEL_CLASS, PANEL_STYLE } from './ui';
 import { useExplore } from '../explore/ExploreContext';
 import { useScene, useSceneContent } from '../canvas/ViewportContext';
+import { standalonePage } from '../standalone';
 
 type Status = { kind: 'idle' } | { kind: 'busy'; text?: string } | { kind: 'done'; text: string } | { kind: 'error'; text: string };
 
@@ -98,6 +99,19 @@ export function ExportMenu() {
           return 'Saved SVG';
         }),
     },
+    ...(standalonePage !== undefined
+      ? [
+          {
+            label: 'HTML',
+            hint: 'offline',
+            act: () =>
+              run(async () => {
+                download(new Blob([standalonePage!], { type: 'text/html' }), exportFileName(draft.title, 'html'));
+                return 'Saved HTML';
+              }),
+          },
+        ]
+      : []),
     ...(formats.video
       ? [
           {

@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,6 +49,18 @@ test('edits reload the page; a broken edit keeps the last good version and says 
   write({ ...commerceApi, title: 'Commerce v2' });
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Commerce v2');
   await expect(toast).toHaveCount(0);
+});
+
+test('an HTML export of a served page is the offline file, without the live connection', async ({ page }) => {
+  await start(commerceApi);
+  await page.goto(url);
+  await expect(page.locator('.sm-card')).toHaveCount(commerceApi.nodes.length);
+  await page.getByRole('button', { name: 'Export' }).click();
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: /^HTML/ }).click()]);
+  const html = readFileSync((await dl.path())!, 'utf8');
+  expect(html).toContain('<script type="application/json" id="stackmap-data">{');
+  // The bundle names the block's id too; it's the element that must be gone.
+  expect(html).not.toContain('<script type="application/json" id="stackmap-live">');
 });
 
 test('the camera, selection and theme survive a live reload', async ({ page }) => {

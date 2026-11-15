@@ -62,6 +62,10 @@ export default function ViewerPage() {
             <C>JPEG</C> and <C>WebP</C>, where the browser can encode them
           </>,
           <C key="svg">SVG</C>,
+          <>
+            <C>HTML</C>: the diagram as one offline file, the same as <C>deliver</C> writes. Opened from <C>serve</C>, it leaves out the live
+            connection. The viewers on this site don’t have it.
+          </>,
           'A short video of the flow, in the format your browser records',
         ]}
       />
