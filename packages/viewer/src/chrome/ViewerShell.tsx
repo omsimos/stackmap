@@ -1,4 +1,4 @@
-import { Eye, Workflow } from 'lucide-react';
+import { Eye } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { KIND_LABELS, type LaidOutDiagram } from '@stackmap/core';
 import { CanvasPanel } from '../canvas/CanvasPanel';
@@ -18,6 +18,19 @@ import { ViewTabs } from './ViewTabs';
 const INSPECTOR_BREAKPOINT = 1100;
 
 const DIAGRAM_ID = 'sm-diagram';
+
+const SITE_URL = 'https://stackmap.omsimos.com/';
+
+/** The stackmap mark in the theme's own colours: the lockup's ink, edge grey and database blue. */
+function StackmapMark() {
+  return (
+    <svg width="20" height="20" viewBox="3 3 42 42" aria-hidden="true">
+      <path d="M12 28.5v-1.5q0-3 3-3h18q3 0 3-3v-1.5" fill="none" stroke="var(--sm-text)" strokeWidth="3.5" strokeLinejoin="round" />
+      <rect x="3" y="30" width="18" height="12" rx="3.5" fill="var(--sm-edge)" />
+      <rect x="27" y="6" width="18" height="12" rx="3.5" fill="var(--sm-database-accent)" />
+    </svg>
+  );
+}
 
 function ViewCaption() {
   const { draft, state } = useExplore();
@@ -101,9 +114,17 @@ export function ViewerShell({
         {!presenting && !focused && (
         <header className="mx-8 mt-4 flex gap-8 border-b border-divider @max-2xl:mx-4 @max-2xl:mt-2 @max-md:flex-wrap @max-md:gap-x-4 @max-md:gap-y-0">
           <div className="flex max-w-[45%] min-w-0 items-center gap-3 py-3 @max-md:max-w-full @max-md:basis-full @max-md:pb-1">
-            <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-panel text-fg-muted" style={{ boxShadow: 'inset 0 0 0 1px var(--sm-panel-border)' }}>
-              <Workflow size={16} strokeWidth={1.75} />
-            </span>
+            <a
+              href={SITE_URL}
+              target="_blank"
+              rel="noopener"
+              title="Made with stackmap"
+              className="sm-press grid size-8 shrink-0 place-items-center rounded-[10px] bg-panel hover:bg-page"
+              style={{ boxShadow: 'inset 0 0 0 1px var(--sm-panel-border)' }}
+            >
+              <StackmapMark />
+              <span className="sr-only">stackmap website (opens in a new tab)</span>
+            </a>
             <Title className="truncate text-[20px] leading-7 font-semibold tracking-tight">{draft.title}</Title>
             <span
               className="shrink-0 rounded-lg bg-panel px-2 py-0.5 text-[13px] text-fg-muted"
