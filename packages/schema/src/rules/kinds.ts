@@ -206,6 +206,17 @@ function phaseDiagnostics(d: DiagramDraft): Diagnostic[] {
       else if (!owner.has(n.id) && n.group === undefined)
         out.push({ ...error('semantics/unphased-node', `/nodes/${i}`, `Node "${n.id}" is in no phase; it is placed in its first predecessor's`, { id: n.id }, ['add it to a phase\'s "nodes"']), severity: 'warning' });
     });
+    // The layout can't hold a group to a stage, so its frame lands wherever its cards do: across the bands.
+    d.groups?.forEach((g, i) => {
+      if (d.nodes.some((n) => n.group === g.id && !owner.has(n.id)))
+        out.push({
+          ...error('semantics/group-outside-phases', `/groups/${i}`, `Group "${g.id}" belongs to no phase; its frame can lie across the phase bands`, { id: g.id }, [
+            'ungroup its nodes and add them to a phase',
+            'remove "phases" and show the stages as groups',
+          ]),
+          severity: 'warning',
+        });
+    });
   }
 
   if (byNodes) {

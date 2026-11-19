@@ -102,4 +102,16 @@ describe('ViewerShell', () => {
     render(<ViewerShell diagram={commerceApiLayout} theme="light" onToggleTheme={() => {}} />);
     for (const name of [/add/i, /undo/i, /redo/i, /lock/i]) expect(screen.queryByRole('button', { name })).toBeNull();
   });
+
+  it('clears a failed export once the menu opens again, so the menu never opens over the error', async () => {
+    render(<ViewerShell diagram={commerceApiLayout} theme="light" onToggleTheme={() => {}} />);
+    const button = screen.getByRole('button', { name: 'Export' });
+    fireEvent.click(button);
+    // jsdom has no clipboard, so Copy PNG fails before it draws anything.
+    fireEvent.click(screen.getByRole('menuitem', { name: /Copy PNG/ }));
+    expect(await screen.findByText('Export failed: clipboard not available here', { selector: 'p' })).toBeInTheDocument();
+    fireEvent.click(button);
+    expect(screen.getByRole('menu', { name: 'Export' })).toBeInTheDocument();
+    expect(screen.queryByText('Export failed: clipboard not available here', { selector: 'p' })).not.toBeInTheDocument();
+  });
 });

@@ -48,15 +48,15 @@ describe('which flow plays', () => {
   });
 
   it('plays a route hop by hop from its start', () => {
-    expect(delays({ route: { from: 'a', to: 'c' } })).toEqual({ ab: 0, bc: hop });
+    expect(delays({ mode: { kind: 'route', from: 'a', to: 'c' } })).toEqual({ ab: 0, bc: hop });
     // No path forward: it runs from the far end back.
-    expect(delays({ route: { from: 'c', to: 'a' } })).toEqual({ ab: 0, bc: hop });
-    expect(delays({ route: { from: 'a', to: 'd' } })).toEqual({});
+    expect(delays({ mode: { kind: 'route', from: 'c', to: 'a' } })).toEqual({ ab: 0, bc: hop });
+    expect(delays({ mode: { kind: 'route', from: 'a', to: 'd' } })).toEqual({});
   });
 
   it("plays a selection's connections, and its whole trace when tracing", () => {
     expect(delays({ selected: 'c' })).toEqual({ bc: 0 });
-    expect(delays({ selected: 'c', trace: true })).toEqual({ ab: 0, db: 0, bc: hop });
+    expect(delays({ selected: 'c', mode: { kind: 'trace' } })).toEqual({ ab: 0, db: 0, bc: hop });
   });
 
   it('tints each pulse by its source, keeps its kind, and lands on the target card', () => {
@@ -84,8 +84,8 @@ describe('whether there is a flow to play', () => {
       {},
       { hiddenTypes: new Set(['service', 'client'] as const) },
       { selected: 'a' },
-      { route: { from: 'a', to: 'c' } },
-      { route: { from: 'c', to: 'd' } },
+      { mode: { kind: 'route', from: 'a', to: 'c' } },
+      { mode: { kind: 'route', from: 'c', to: 'd' } },
     ];
     for (const s of cases) expect(playable(s), JSON.stringify(s)).toBe(flow(s).pulses.length > 0);
   });

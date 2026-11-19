@@ -121,13 +121,14 @@ describe('crowded lane layouts', () => {
   const next = generator(4, { nodes: 30, edges: 240 });
   const cases = Array.from({ length: 3 }, next);
 
-  it.each(cases.map((d, i) => [i, d] as const))('random diagram %i keeps every route off the cards', (_i, d) => {
+  it.each(cases.map((d, i) => [i, d] as const))('random diagram %i keeps every route off the cards and the port runs apart', (_i, d) => {
     const out = layoutLanes(d);
     for (const e of d.edges) {
       const pts = out.edges[e.id]!;
       for (let i = 1; i < pts.length; i++) expect(pts[i]!.x === pts[i - 1]!.x || pts[i]!.y === pts[i - 1]!.y, `${e.id} is orthogonal`).toBe(true);
     }
     expectOffCards(d, out);
+    expect(overlappingPortRuns(d, out)).toEqual([]);
   }, 30_000);
 });
 
@@ -185,13 +186,15 @@ describe('ELK layout properties', () => {
           const own = (i === 1 && id === e.from) || (i === pts.length - 1 && id === e.to);
           if (!own) expect(crosses(pts[i - 1]!, pts[i]!, r), `${e.id} segment ${i} crosses ${id}`).toBe(false);
         }
-      // A target wholly before or after its source along the flow is entered by the side facing it (same row only:
-      // a wrapped layout carries forward edges back to the start of the next row).
+      // A target wholly before or after its source along the flow is entered by the side facing it (same row or
+      // column only: a wrapped layout carries forward edges back to the start of the next one).
       const [s, t] = [out.nodes[e.from]!, out.nodes[e.to]!];
       const end = pts.at(-1)!;
       if (d.direction === 'DOWN') {
-        if (t.y + t.height <= s.y) expect(Math.abs(end.y - t.y - t.height) < 0.5, `${e.id} enters the bottom`).toBe(true);
-        if (t.y >= s.y + s.height) expect(Math.abs(end.y - t.y) < 0.5, `${e.id} enters the top`).toBe(true);
+        if (s.x < t.x + t.width && t.x < s.x + s.width) {
+          if (t.y + t.height <= s.y) expect(Math.abs(end.y - t.y - t.height) < 0.5, `${e.id} enters the bottom`).toBe(true);
+          if (t.y >= s.y + s.height) expect(Math.abs(end.y - t.y) < 0.5, `${e.id} enters the top`).toBe(true);
+        }
       } else if (s.y < t.y + t.height && t.y < s.y + s.height) {
         if (t.x + t.width <= s.x) expect(Math.abs(end.x - t.x - t.width) < 0.5, `${e.id} enters the right`).toBe(true);
         if (t.x >= s.x + s.width) expect(Math.abs(end.x - t.x) < 0.5, `${e.id} enters the left`).toBe(true);

@@ -441,7 +441,7 @@ export const groupedPlatformLayout: LaidOutDiagram = {
     },
     "e5": {
       "x": 457,
-      "y": 695
+      "y": 719
     }
   }
 };

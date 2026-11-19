@@ -1,7 +1,7 @@
 import { CARD, COMPACT } from '@stackmap/core';
 import { routeBetween, type Graph } from '../explore/graph';
 import type { Emphasis } from '../explore/emphasis';
-import type { ExploreState } from '../explore/state';
+import { routeOf, type ExploreState } from '../explore/state';
 import { EDGE_RADIUS, type Scene } from '../canvas/scene';
 import { hopFlow, hopRanks, NO_FLOW, roundedPolyline, waveFlow, type Flow, type FlowEdge } from './flow';
 
@@ -35,9 +35,9 @@ function buildFlowEdges(scene: Scene): Map<string, FlowEdge> {
 }
 
 /** Whether flowOf has anything to play: a route's or selection's lit connections, otherwise any edge left undimmed. */
-export function hasFlow(state: Pick<ExploreState, 'route' | 'selected'>, em: Emphasis): boolean {
+export function hasFlow(state: Pick<ExploreState, 'mode' | 'selected'>, em: Emphasis): boolean {
   const edges = [...em.edges.values()];
-  return state.route || state.selected ? edges.some((e) => e.tint) : edges.some((e) => !e.dim);
+  return routeOf(state.mode) || state.selected ? edges.some((e) => e.tint) : edges.some((e) => !e.dim);
 }
 
 /**
@@ -45,13 +45,14 @@ export function hasFlow(state: Pick<ExploreState, 'route' | 'selected'>, em: Emp
  * (traced or not) runs through its lit connections, and otherwise everything not dimmed (by a view, the lens or
  * a search) plays: a wave in reading order, or a sequence's messages replayed one after another.
  */
-export function flowOf(scene: Scene, graph: Graph, state: Pick<ExploreState, 'route' | 'selected'>, em: Emphasis): Flow {
+export function flowOf(scene: Scene, graph: Graph, state: Pick<ExploreState, 'mode' | 'selected'>, em: Emphasis): Flow {
   const edges = flowEdges(scene);
   const pick = (ids: string[]) => ids.flatMap((id) => edges.get(id) ?? []);
   const lit = scene.edges.filter((e) => em.edges.get(e.id)?.tint).map((e) => e.id);
   const serial = graph.timed;
-  if (state.route) {
-    const route = routeBetween(graph, state.route.from, state.route.to);
+  const ends = routeOf(state.mode);
+  if (ends) {
+    const route = routeBetween(graph, ends.from, ends.to);
     if (!route) return NO_FLOW;
     // A reversed route's `from` is already the end it really runs from.
     return hopFlow(pick(lit), hopRanks(graph, new Set(lit), { start: route.from, fallback: route.from }), { serial });

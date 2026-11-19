@@ -343,6 +343,19 @@ export function routeEdges(
       runLines.set(line, [...(runLines.get(line) ?? []), { lo, hi, ...me }]);
     });
     out[req.id] = [portPoint(src, from.side, from.slot), ...gridPath.map((k) => grid.pts[k]!), portPoint(dst, to.side, to.slot)];
+    // The whole straight run at each end stays on its port (a nudge never moves it), so it keeps its line as the
+    // port itself does.
+    for (const [node, role, pts] of [
+      [req.from, 'out', out[req.id]!],
+      [req.to, 'in', [...out[req.id]!].reverse()],
+    ] as const) {
+      const vertical = pts[0]!.x === pts[1]!.x;
+      let end = 1;
+      while (end + 1 < pts.length && (vertical ? pts[end + 1]!.x === pts[0]!.x : pts[end + 1]!.y === pts[0]!.y)) end++;
+      const [a, b] = vertical ? [pts[0]!.y, pts[end]!.y] : [pts[0]!.x, pts[end]!.x];
+      const line = lineKey(vertical, vertical ? pts[0]!.x : pts[0]!.y);
+      portLines.set(line, [...(portLines.get(line) ?? []), { lo: Math.min(a, b), hi: Math.max(a, b), node, role }]);
+    }
   }
   return out;
 }

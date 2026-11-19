@@ -328,11 +328,14 @@ test('the docs search loads its index again after a failed fetch', async ({ page
   await page.route('**/search.json', (r) => (fail ? r.abort() : r.continue()));
   await page.goto('/docs');
   const box = page.getByRole('combobox', { name: 'Search the docs' });
+  const failed = page.waitForEvent('requestfailed', (r) => r.url().endsWith('/search.json'));
   await expect(async () => {
     await page.keyboard.press('ControlOrMeta+k');
     await expect(box).toBeFocused({ timeout: 500 });
   }).toPass();
   await box.fill('serve');
+  // An open while the failing fetch is still pending shares it, so the retry is only due once it has failed.
+  await failed;
   await expect(page.getByRole('option')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(box).toHaveCount(0);

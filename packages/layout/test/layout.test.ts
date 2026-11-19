@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cardSize, type DiagramDraft, type DiagramNode, type Point, type Rect } from '@stackmap/core';
 import { commerceApi, groupedPlatform } from '@stackmap/core/samples';
-import { GROUP_LABEL_BAND, layoutDiagram, squared, STAGE_LABEL_BAND } from '../src/index';
+import { GROUP_LABEL_BAND, isLarge, layoutDiagram, squared, STAGE_LABEL_BAND } from '../src/index';
 import { STRESS } from './stress';
 
 const node = (id: string, extra: Partial<DiagramNode> = {}): DiagramNode => ({
@@ -25,6 +25,15 @@ describe('squared', () => {
 
   it('keeps a corner that comes as two points in the same place', () => {
     expect(squared([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])).toEqual([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }]);
+  });
+});
+
+describe('isLarge', () => {
+  it('holds past the node limit only for the kinds ELK lays out', () => {
+    const nodes = Array.from({ length: 61 }, (_, i) => node(`n${i}`));
+    expect(isLarge(draft({ nodes }))).toBe(true);
+    expect(isLarge(draft({ nodes: nodes.slice(1) }))).toBe(false);
+    for (const kind of ['workflow', 'lifecycle', 'sequence'] as const) expect(isLarge(draft({ kind, nodes })), kind).toBe(false);
   });
 });
 
@@ -108,6 +117,34 @@ describe('layoutDiagram', () => {
   it('wraps a wide left-to-right diagram instead of laying it out as one long strip', async () => {
     const { width, height } = (await layoutDiagram({ ...groupedPlatform, direction: 'RIGHT' })).bounds;
     expect(width / height).toBeLessThanOrEqual(2.6);
+  });
+
+  const chain = (n: number): Pick<DiagramDraft, 'nodes' | 'edges'> => ({
+    nodes: Array.from({ length: n }, (_, i) => node(`c${i}`)),
+    edges: Array.from({ length: n - 1 }, (_, i) => ({ id: `e${i}`, from: `c${i}`, to: `c${i + 1}` })),
+  });
+
+  it('wraps a tall top-down diagram on its height, the axis a fold shortens', async () => {
+    const { width, height } = (await layoutDiagram(draft({ direction: 'DOWN', ...chain(16) }))).bounds;
+    // One column is 360 by 2184.
+    expect(height).toBeLessThan(1200);
+    expect(width).toBeGreaterThan(360);
+  });
+
+  it('wraps a top-down chain alike on either side of the large-diagram limit', async () => {
+    const [under, over] = await Promise.all([60, 61].map(async (n) => (await layoutDiagram(draft({ direction: 'DOWN', ...chain(n) }))).bounds));
+    expect(under!.width).toBe(over!.width);
+    expect(Math.abs(under!.height - over!.height)).toBeLessThan(200);
+  });
+
+  it('leaves a large diagram that is short along the flow unwrapped', async () => {
+    // Large by its edges alone; ELK's own wrap decision goes by aspect ratio and would fold this strip.
+    const edges = Array.from({ length: 184 }, (_, i) => ({ id: `e${i}`, from: `c${i % 3}`, to: `c${(i % 3) + 1}` }));
+    const out = await layoutDiagram(draft({ density: 'compact', nodes: chain(4).nodes, edges }));
+    expect(out.bounds.width).toBeLessThanOrEqual(1600);
+    const tops = out.draft.nodes.map((n) => out.nodes[n.id]!.x);
+    expect(tops).toEqual([...tops].sort((a, b) => a - b));
+    expect(new Set(tops).size).toBe(4);
   });
 
   it('keeps a short chain on one row', async () => {

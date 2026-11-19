@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useExplore } from '@stackmap/viewer/src/explore/ExploreContext';
+import { isRouting } from '@stackmap/viewer/src/explore/state';
 
 export type Try = 'select' | 'trace' | 'route' | 'find' | 'views' | 'play';
 
@@ -21,11 +22,12 @@ export function useTry(show: Showcase) {
   const { state, dispatch } = useExplore();
   // The mode that was on when Play was last pressed; undefined once another button is.
   const [playedOver, setPlayedOver] = useState<Try | null>();
-  const active: Try | null = state.route || state.routing ? 'route' : state.query !== null ? 'find' : state.selected && state.trace ? 'trace' : state.selected ? 'select' : state.view ? 'views' : null;
+  const tracing = state.mode.kind === 'trace';
+  const active: Try | null = isRouting(state.mode) ? 'route' : state.query !== null ? 'find' : state.selected && tracing ? 'trace' : state.selected ? 'select' : state.view ? 'views' : null;
   const on = (id: Try) => (id === 'play' ? state.playing : active === id);
   const reset = () => {
     dispatch({ type: 'clear' });
-    if (state.trace) dispatch({ type: 'toggleTrace' });
+    if (tracing) dispatch({ type: 'toggleTrace' });
     if (state.view) dispatch({ type: 'view', id: null });
   };
   const go = (id: Try) => {

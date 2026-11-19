@@ -178,7 +178,8 @@ test('keyboard only: tab to a card, arrow between cards, Enter selects, Escape c
 test('Tab reaches the toolbar before the canvas, and the canvas is one tab stop (roving)', async ({ page }) => {
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   const order: string[] = [];
-  for (let i = 0; i < 12; i++) {
+  // The header's stackmap link comes first, then the view tabs and the toolbar.
+  for (let i = 0; i < 14; i++) {
     await page.keyboard.press('Tab');
     order.push(
       await page.evaluate(() => {

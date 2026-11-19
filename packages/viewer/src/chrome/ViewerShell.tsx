@@ -1,5 +1,5 @@
-import { Eye, Workflow } from 'lucide-react';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Eye } from 'lucide-react';
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { KIND_LABELS, type LaidOutDiagram } from '@stackmap/core';
 import { CanvasPanel } from '../canvas/CanvasPanel';
 import { DiagramCanvas } from '../canvas/DiagramCanvas';
@@ -9,6 +9,7 @@ import { revealChrome } from '../motion/motion';
 import type { ThemeChoice } from '../theme/theme';
 import { Inspector } from './Inspector';
 import { PresentBar } from './Presentation';
+import { shell as shellReducer, SHELL } from './shell';
 import { inMenu } from './Toolbar';
 import { Toolbar } from './Toolbar';
 import { IconButton, PANEL_CLASS, PANEL_STYLE } from './ui';
@@ -18,6 +19,19 @@ import { ViewTabs } from './ViewTabs';
 const INSPECTOR_BREAKPOINT = 1100;
 
 const DIAGRAM_ID = 'sm-diagram';
+
+const SITE_URL = 'https://stackmap.omsimos.com/';
+
+/** The stackmap mark in the theme's own colours: the lockup's ink, edge grey and database blue. */
+function StackmapMark() {
+  return (
+    <svg width="20" height="20" viewBox="3 3 42 42" aria-hidden="true">
+      <path d="M12 28.5v-1.5q0-3 3-3h18q3 0 3-3v-1.5" fill="none" stroke="var(--sm-text)" strokeWidth="3.5" strokeLinejoin="round" />
+      <rect x="3" y="30" width="18" height="12" rx="3.5" fill="var(--sm-edge)" />
+      <rect x="27" y="6" width="18" height="12" rx="3.5" fill="var(--sm-database-accent)" />
+    </svg>
+  );
+}
 
 function ViewCaption() {
   const { draft, state } = useExplore();
@@ -41,43 +55,39 @@ export function ViewerShell({
   const Main = Title === 'h1' ? 'main' : 'div';
   const [inspectorCollapsed, setInspectorCollapsed] = useState(() => innerWidth < INSPECTOR_BREAKPOINT);
   const shell = useRef<HTMLDivElement>(null);
-  // Presentation (F): the stage alone, full screen where the browser allows it, stepping through the views.
-  const [presenting, setPresenting] = useState(false);
-  const presentingRef = useRef(false);
-  presentingRef.current = presenting;
+  // Focus (Z), presentation (F) and the folded toolbar (H): the rules are in ./shell.
+  const [view, dispatchShell] = useReducer(shellReducer, SHELL);
+  const { focused, presenting, toolbarHidden } = view;
+  // Read by the key and full screen listeners, which subscribe once. `present` moves it ahead of the render, so a
+  // full screen change that lands first already sees where the presentation is going.
+  const latest = useRef(view);
+  latest.current = view;
   // Full screen lands frames after the presentation toggles, and resizes the stage a second time.
   const [fullscreen, setFullscreen] = useState(false);
   const present = useCallback((on: boolean) => {
-    presentingRef.current = on;
-    setPresenting(on);
+    latest.current = shellReducer(latest.current, { type: 'present', on });
+    dispatchShell({ type: 'present', on });
     if (on) void shell.current?.requestFullscreen?.().catch(() => {});
     else if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-  }, []);
-  // Focus (Z): the canvas alone in the window, everything on it still working. H hides the toolbar, in focus or not.
-  const [focused, setFocused] = useState(false);
-  const [toolbarHidden, setToolbarHidden] = useState(false);
-  const focus = useCallback((on: boolean) => {
-    setFocused(on);
-    // Leaving focus always brings the toolbar back.
-    if (!on) setToolbarHidden(false);
   }, []);
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       const key = e.key.toLowerCase();
       if ((key !== 'f' && key !== 'z' && key !== 'h') || e.metaKey || e.ctrlKey || e.altKey || e.repeat || inMenu(t) || (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))) return;
-      if (key !== 'f' && presenting) return;
+      // Z and H do nothing while presenting, so they leave the key to the page too.
+      if (key !== 'f' && latest.current.presenting) return;
       e.preventDefault();
-      if (key === 'f') present(!presenting);
-      else if (key === 'z') focus(!focused);
-      else setToolbarHidden((v) => !v);
+      if (key === 'f') present(!latest.current.presenting);
+      else if (key === 'z') dispatchShell({ type: 'focus', on: !latest.current.focused });
+      else dispatchShell({ type: 'toolbar', hidden: !latest.current.toolbarHidden });
     };
     // Leaving full screen (Esc in the browser's own handling) ends the presentation too.
     const onFullscreen = () => {
       setFullscreen(!!document.fullscreenElement);
-      if (!document.fullscreenElement) setPresenting(false);
+      if (!document.fullscreenElement) present(false);
       // A request that resolved after the presentation already ended (a quick F, F): leave full screen again.
-      else if (!presentingRef.current) void document.exitFullscreen().catch(() => {});
+      else if (!latest.current.presenting) void document.exitFullscreen().catch(() => {});
     };
     addEventListener('keydown', onKey);
     document.addEventListener('fullscreenchange', onFullscreen);
@@ -85,7 +95,7 @@ export function ViewerShell({
       removeEventListener('keydown', onKey);
       document.removeEventListener('fullscreenchange', onFullscreen);
     };
-  }, [presenting, present, focused, focus]);
+  }, [present]);
   // Read during render: the canvas (a child) records what it shows in its own layout effect, which runs first.
   const [reloaded] = useState(() => readLiveConfig(document) !== null && readShown() !== null);
   useLayoutEffect(() => {
@@ -101,9 +111,17 @@ export function ViewerShell({
         {!presenting && !focused && (
         <header className="mx-8 mt-4 flex gap-8 border-b border-divider @max-2xl:mx-4 @max-2xl:mt-2 @max-md:flex-wrap @max-md:gap-x-4 @max-md:gap-y-0">
           <div className="flex max-w-[45%] min-w-0 items-center gap-3 py-3 @max-md:max-w-full @max-md:basis-full @max-md:pb-1">
-            <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-panel text-fg-muted" style={{ boxShadow: 'inset 0 0 0 1px var(--sm-panel-border)' }}>
-              <Workflow size={16} strokeWidth={1.75} />
-            </span>
+            <a
+              href={SITE_URL}
+              target="_blank"
+              rel="noopener"
+              title="Made with stackmap"
+              className="sm-press grid size-8 shrink-0 place-items-center rounded-[10px] bg-panel hover:bg-page"
+              style={{ boxShadow: 'inset 0 0 0 1px var(--sm-panel-border)' }}
+            >
+              <StackmapMark />
+              <span className="sr-only">stackmap website (opens in a new tab)</span>
+            </a>
             <Title className="truncate text-[20px] leading-7 font-semibold tracking-tight">{draft.title}</Title>
             <span
               className="shrink-0 rounded-lg bg-panel px-2 py-0.5 text-[13px] text-fg-muted"
@@ -131,7 +149,7 @@ export function ViewerShell({
               <CanvasPanel position="top-left" className="flex max-w-[calc(100%-30px)]">
                 {toolbarHidden ? (
                   <div className={`${PANEL_CLASS} p-1.5`} style={PANEL_STYLE}>
-                    <IconButton label="Show the toolbar (H)" onClick={() => setToolbarHidden(false)}>
+                    <IconButton label="Show the toolbar (H)" onClick={() => dispatchShell({ type: 'toolbar', hidden: false })}>
                       <Eye size={17} strokeWidth={1.75} />
                     </IconButton>
                   </div>
@@ -141,8 +159,8 @@ export function ViewerShell({
                     onToggleTheme={onToggleTheme}
                     onPresent={() => present(true)}
                     focused={focused}
-                    onFocus={() => focus(!focused)}
-                    onHide={() => setToolbarHidden(true)}
+                    onFocus={() => dispatchShell({ type: 'focus', on: !focused })}
+                    onHide={() => dispatchShell({ type: 'toolbar', hidden: true })}
                   />
                 )}
               </CanvasPanel>

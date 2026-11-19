@@ -1,6 +1,7 @@
 import { EyeOff, Filter, Focus, Moon, Presentation, Route, Search, Sun, Waypoints } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useExplore } from '../explore/ExploreContext';
+import { isRouting } from '../explore/state';
 import { useInScope } from '../explore/scope';
 import type { ThemeChoice } from '../theme/theme';
 import { ExportMenu } from './ExportMenu';
@@ -38,8 +39,9 @@ export function Toolbar({
   const { state, dispatch } = useExplore();
   const inScope = useInScope();
   const [lensOpen, setLensOpen] = useState(false);
+  const routing = isRouting(state.mode);
   const routingRef = useRef(false);
-  routingRef.current = !!state.routing || !!state.route;
+  routingRef.current = routing;
   const root = useRef<HTMLDivElement>(null);
   const searchButton = useRef<HTMLButtonElement>(null);
   const lensButton = useRef<HTMLButtonElement>(null);
@@ -57,6 +59,13 @@ export function Toolbar({
   };
   const next = theme === 'dark' ? 'light' : 'dark';
   const searchOpen = state.query !== null;
+  // One popover at a time. Search lives in the explorer, where a page beside the viewer can open it too, so it wins;
+  // the lens is hidden in the same render and closed for good just after.
+  const lensShown = lensOpen && !searchOpen;
+  useEffect(() => {
+    if (searchOpen) setLensOpen(false);
+  }, [searchOpen]);
+  const picking = state.mode.kind === 'pickStart' || state.mode.kind === 'pickEnd' ? state.mode : null;
 
   // "/" opens search from anywhere except a text field; Escape from the page body clears the selection
   // (cards, the stage and the popovers handle their own Escape and stop it).
@@ -78,7 +87,6 @@ export function Toolbar({
       }
       if (e.key !== '/') return;
       e.preventDefault();
-      setLensOpen(false);
       setSearchByKey(true);
       dispatch({ type: 'search', query: '' });
     };
@@ -88,7 +96,7 @@ export function Toolbar({
 
   // Clicking outside closes the popovers.
   useEffect(() => {
-    if (!searchOpen && !lensOpen) return;
+    if (!searchOpen && !lensShown) return;
     const onDown = (e: PointerEvent) => {
       if (root.current?.contains(e.target as Node)) return;
       setLensOpen(false);
@@ -96,7 +104,7 @@ export function Toolbar({
     };
     addEventListener('pointerdown', onDown);
     return () => removeEventListener('pointerdown', onDown);
-  }, [searchOpen, lensOpen, dispatch]);
+  }, [searchOpen, lensShown, dispatch]);
 
   return (
     <div
@@ -104,7 +112,7 @@ export function Toolbar({
       className={`${PANEL_CLASS} relative flex shrink-0 items-center gap-0.5 p-1.5 @max-md:shrink @max-md:flex-wrap`}
       style={PANEL_STYLE}
       onKeyDown={(e) => {
-        if (e.key !== 'Escape' || !lensOpen) return;
+        if (e.key !== 'Escape' || !lensShown) return;
         e.preventDefault();
         e.stopPropagation();
         closeLens();
@@ -116,7 +124,6 @@ export function Toolbar({
         pressed={searchOpen}
         expanded={searchOpen}
         onClick={(e) => {
-          setLensOpen(false);
           setSearchByKey(e.detail === 0);
           dispatch({ type: 'search', query: searchOpen ? null : '' });
         }}
@@ -126,12 +133,12 @@ export function Toolbar({
       <IconButton
         ref={lensButton}
         label="Filter by type"
-        pressed={lensOpen || state.hiddenTypes.size > 0}
-        expanded={lensOpen}
+        pressed={lensShown || state.hiddenTypes.size > 0}
+        expanded={lensShown}
         onClick={(e) => {
           dispatch({ type: 'search', query: null });
           setLensByKey(e.detail === 0);
-          setLensOpen((v) => !v);
+          setLensOpen(!lensShown);
         }}
       >
         <Filter size={17} strokeWidth={1.75} />
@@ -139,14 +146,14 @@ export function Toolbar({
       {trace && (
         <IconButton
           label="Trace upstream and downstream of the selection"
-          pressed={state.trace && !state.route && !state.routing}
-          disabled={!!state.route || !!state.routing}
+          pressed={state.mode.kind === 'trace'}
+          disabled={routing}
           onClick={() => dispatch({ type: 'toggleTrace' })}
         >
           <Route size={17} strokeWidth={1.75} />
         </IconButton>
       )}
-      <IconButton label="Route between two nodes (R)" pressed={!!state.routing || !!state.route} onClick={() => dispatch({ type: 'toggleRoute' })}>
+      <IconButton label="Route between two nodes (R)" pressed={routing} onClick={() => dispatch({ type: 'toggleRoute' })}>
         <Waypoints size={17} strokeWidth={1.75} />
       </IconButton>
       <PlayButton />
@@ -177,19 +184,19 @@ export function Toolbar({
       {/* Always mounted, so screen readers announce the hint when its text arrives. */}
       <p
         role="status"
-        className={`${state.routing ? `${PANEL_CLASS} absolute top-full left-0 mt-2 w-max px-3 py-2 text-[12.5px] text-fg` : 'sr-only'}`}
-        style={state.routing ? PANEL_STYLE : undefined}
+        className={`${picking ? `${PANEL_CLASS} absolute top-full left-0 mt-2 w-max px-3 py-2 text-[12.5px] text-fg` : 'sr-only'}`}
+        style={picking ? PANEL_STYLE : undefined}
       >
-        {state.routing && (
+        {picking && (
           <>
-            {state.routing.next === 'from' ? 'Pick where the route starts' : 'Now pick where it ends'}
+            {picking.kind === 'pickStart' ? 'Pick where the route starts' : 'Now pick where it ends'}
             {/* The space keeps the two phrases apart for screen readers; ml-2 alone only spaces them visually. */}{' '}
             <span className="ml-1 text-fg-muted">Esc cancels</span>
           </>
         )}
       </p>
       {searchOpen && <SearchPanel onClose={closeSearch} origin={searchByKey ? undefined : originOf(searchButton.current)} />}
-      {lensOpen && <LensPanel origin={lensByKey ? undefined : originOf(lensButton.current)} />}
+      {lensShown && <LensPanel origin={lensByKey ? undefined : originOf(lensButton.current)} />}
     </div>
   );
 }

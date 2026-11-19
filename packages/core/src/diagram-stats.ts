@@ -27,6 +27,9 @@ export const TYPE_LABELS: Record<NodeType, string> = {
   neutral: 'Neutral',
 };
 
+/** Past this many nodes validation warns to split the diagram, and the layout takes its cheaper settings. */
+export const LARGE_DIAGRAM = 60;
+
 export function countByType(nodes: DiagramNode[]): [NodeType, number][] {
   const counts = new Map<NodeType, number>();
   for (const n of nodes) counts.set(n.type, (counts.get(n.type) ?? 0) + 1);
