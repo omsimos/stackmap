@@ -9,6 +9,6 @@ export { flowOf };
 /** `on` false (nothing is playing): no flow is built, so a change of emphasis costs nothing here. */
 export function useFlow(scene: Scene, on = true): Flow {
   const { graph, state, emphasis } = useExplore();
-  const { route, selected } = state;
-  return useMemo(() => (on ? flowOf(scene, graph, { route, selected }, emphasis) : NO_FLOW), [on, scene, graph, route, selected, emphasis]);
+  const { mode, selected } = state;
+  return useMemo(() => (on ? flowOf(scene, graph, { mode, selected }, emphasis) : NO_FLOW), [on, scene, graph, mode, selected, emphasis]);
 }

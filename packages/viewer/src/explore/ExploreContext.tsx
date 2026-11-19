@@ -50,11 +50,11 @@ export function ExploreProvider({
   const known = useMemo(() => knownOf(draft), [draft]);
   const [state, dispatch] = useReducer(explore, undefined, () => (syncHash ? parseHash(location.hash, known) : INITIAL));
   const graph = useMemo(() => buildGraph(draft.nodes.map((n) => n.id), draft.edges, { timed: draft.kind === 'sequence' }), [draft]);
-  const { peek, view, query, trace, selected, route, routing, hiddenTypes } = state;
+  const { peek, view, query, mode, selected, hiddenTypes } = state;
   // Only what emphasis reads: a speed or play toggle must not rebuild it, or the playing flow restarts from 0.
   const em = useMemo(
-    () => emphasis(draft, graph, { peek, view, query, trace, selected, route, routing, hiddenTypes }),
-    [draft, graph, peek, view, query, trace, selected, route, routing, hiddenTypes],
+    () => emphasis(draft, graph, { peek, view, query, mode, selected, hiddenTypes }),
+    [draft, graph, peek, view, query, mode, selected, hiddenTypes],
   );
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -71,7 +71,7 @@ export function ExploreProvider({
     const onHash = () =>
       dispatch({
         type: 'replace',
-        state: { ...parseHash(location.hash, known), trace: false, reveal: stateRef.current.reveal + 1 },
+        state: { ...parseHash(location.hash, known), reveal: stateRef.current.reveal + 1 },
       });
     addEventListener('hashchange', onHash);
     return () => removeEventListener('hashchange', onHash);

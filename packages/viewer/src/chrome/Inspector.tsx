@@ -4,6 +4,7 @@ import { countByType, TYPE_LABELS, type DiagramDraft, type DiagramEdge, type Dia
 import { focusCard } from '../canvas/SceneLayers';
 import { routeBetween } from '../explore/graph';
 import { useExplore } from '../explore/ExploreContext';
+import { isRouting, routeOf } from '../explore/state';
 import { useViewerRoot } from '../explore/scope';
 import { useInFlight } from '../motion/inFlight';
 import { swapIn } from '../motion/motion';
@@ -265,22 +266,23 @@ function RouteDetail({ toggle }: { toggle: ReactNode }) {
       </div>
     </div>
   );
-  if (!state.route) {
+  const { mode } = state;
+  if (mode.kind !== 'route') {
     return (
       <>
         {header}
         <p className="mt-2 text-[13px] text-fg-muted">
-          {state.routing?.next === 'to' ? `From ${title(state.routing.start)}: pick where the route ends.` : 'Pick the node the route starts from.'}
+          {mode.kind === 'pickEnd' ? `From ${title(mode.from)}: pick where the route ends.` : 'Pick the node the route starts from.'}
         </p>
       </>
     );
   }
-  const route = routeBetween(graph, state.route.from, state.route.to);
+  const route = routeBetween(graph, mode.from, mode.to);
   return (
     <>
       {header}
       <H className="mt-1 text-[18px] font-semibold tracking-tight break-words text-fg">
-        {title(state.route.from)} → {title(state.route.to)}
+        {title(mode.from)} → {title(mode.to)}
       </H>
       {!route ? (
         <p className="mt-2 text-[13px] text-fg-muted">No directed connections lead from one to the other.</p>
@@ -390,7 +392,8 @@ export function Inspector({
     // Collapsed, a selection or route would change nothing visible beyond the canvas (a phone starts collapsed):
     // the toggle names what it would show, so a tapped card visibly has details waiting.
     const name = (id: string) => draft.nodes.find((n) => n.id === id)?.card.title ?? id;
-    const showing = state.route ? `${name(state.route.from)} → ${name(state.route.to)}` : selected?.card.title;
+    const route = routeOf(state.mode);
+    const showing = route ? `${name(route.from)} → ${name(route.to)}` : selected?.card.title;
     return (
       <aside aria-label="Inspector" className={`shrink-0 self-start rounded-2xl bg-panel p-1.5 ${narrow ? NARROW_COLLAPSED : ''}`} style={PANEL_STYLE}>
         {showing ? (
@@ -419,7 +422,7 @@ export function Inspector({
     <Level.Provider value={headingLevel}>
     <aside aria-label="Inspector" className={`relative shrink-0 overflow-y-auto rounded-[20px] bg-panel p-5 ${narrow ? `w-[300px] ${NARROW_OPEN}` : ''}`} style={PANEL_STYLE}>
       <div ref={body}>
-      {state.route || state.routing ? (
+      {isRouting(state.mode) ? (
         <RouteDetail toggle={toggle} />
       ) : selected ? (
         <NodeDetail node={selected} toggle={toggle} />
