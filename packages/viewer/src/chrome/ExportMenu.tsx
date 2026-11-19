@@ -8,7 +8,9 @@ import { useExplore } from '../explore/ExploreContext';
 import { useScene, useSceneContent } from '../canvas/ViewportContext';
 import { standalonePage } from '../standalone';
 
+/** idle → busy → done | error; opening the menu again returns to idle (the button is disabled while busy). */
 type Status = { kind: 'idle' } | { kind: 'busy'; text?: string } | { kind: 'done'; text: string } | { kind: 'error'; text: string };
+const IDLE: Status = { kind: 'idle' };
 
 export function ExportMenu() {
   const { draft, state, graph, emphasis } = useExplore();
@@ -17,12 +19,18 @@ export function ExportMenu() {
   // What this browser can write, checked once.
   const [formats] = useState(() => ({ jpeg: canEncode('image/jpeg'), webp: canEncode('image/webp'), video: videoType() }));
   const [open, setOpen] = useState(false);
-  const [status, setStatus] = useState<Status>({ kind: 'idle' });
+  const [status, setStatus] = useState<Status>(IDLE);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   // Opened from the keyboard (ArrowDown, or Enter/Space: a click with detail 0) the menu appears at once.
   const byKey = useRef(false);
+  const toggle = (keyboard: boolean) => {
+    byKey.current = keyboard;
+    // The last export's message makes way for the menu, which would otherwise open on top of an error.
+    if (!open) setStatus(IDLE);
+    setOpen(!open);
+  };
   // The menu is right-aligned under the button: grow it from the button's centre.
   useLayoutEffect(() => {
     if (!open || !menu.current || byKey.current) return;
@@ -140,15 +148,11 @@ export function ExportMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         disabled={status.kind === 'busy'}
-        onClick={(e) => {
-          byKey.current = e.detail === 0;
-          setOpen((v) => !v);
-        }}
+        onClick={(e) => toggle(e.detail === 0)}
         onKeyDown={(e) => {
           if (e.key === 'ArrowDown' && !open) {
             e.preventDefault();
-            byKey.current = true;
-            setOpen(true);
+            toggle(true);
           }
         }}
         className="sm-press flex h-9 items-center gap-2 rounded-full bg-primary px-4 text-[14px] font-medium text-primary-fg disabled:opacity-60 @max-md:px-2.5"
