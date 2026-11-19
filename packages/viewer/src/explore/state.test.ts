@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { explore, formatHash, INITIAL, parseHash, type Speed } from './state';
+import { explore, formatHash, INITIAL, isRouting, parseHash, routeOf, type ExploreState, type Mode, type Speed } from './state';
 
 const known = { nodes: new Set(['api', 'db']), views: new Set(['data']), types: new Set(['service', 'database'] as const) };
 
@@ -7,10 +7,11 @@ describe('explorer reducer', () => {
   it('selects, toggles trace, and clears with Escape semantics', () => {
     let s = explore(INITIAL, { type: 'select', id: 'api' });
     s = explore(s, { type: 'toggleTrace' });
-    expect(s).toMatchObject({ selected: 'api', trace: true });
+    expect(s).toMatchObject({ selected: 'api', mode: { kind: 'trace' } });
     s = explore(s, { type: 'clear' });
     expect(s).toMatchObject({ selected: null, query: null });
-    expect(s.trace).toBe(true); // a mode, not a selection: survives clear
+    expect(s.mode.kind).toBe('trace'); // a mode, not a selection: survives clear
+    expect(explore(s, { type: 'toggleTrace' }).mode.kind).toBe('neighbours');
   });
 
   it('a revealing selection bumps the camera counter; a plain one does not', () => {
@@ -65,21 +66,47 @@ describe('hash', () => {
 });
 
 describe('route picking', () => {
+  const picking = (from: ExploreState) => explore(from, { type: 'toggleRoute' });
+
   it('the next two card clicks pick the ends; empty canvas keeps picking; clear ends it', () => {
-    let s = explore({ ...INITIAL, selected: 'api', trace: true }, { type: 'toggleRoute' });
-    expect(s).toMatchObject({ routing: { next: 'from' }, selected: null, trace: false });
+    let s = picking({ ...INITIAL, selected: 'api', mode: { kind: 'trace' } });
+    // Starting a route replaces trace and drops the selection.
+    expect(s).toMatchObject({ mode: { kind: 'pickStart' }, selected: null });
+    s = explore(s, { type: 'select', id: null });
+    expect(s.mode).toEqual({ kind: 'pickStart' });
     s = explore(s, { type: 'select', id: 'api' });
     s = explore(s, { type: 'select', id: null });
     s = explore(s, { type: 'select', id: 'api' });
-    expect(s.routing).toEqual({ next: 'to', start: 'api' });
+    expect(s.mode).toEqual({ kind: 'pickEnd', from: 'api' });
     s = explore(s, { type: 'select', id: 'db' });
-    expect(s).toMatchObject({ routing: null, route: { from: 'api', to: 'db' }, selected: null });
+    expect(s).toMatchObject({ mode: { kind: 'route', from: 'api', to: 'db' }, selected: null });
     expect(formatHash(s)).toBe('#route=api~db');
-    expect(explore(s, { type: 'clear' }).route).toBeNull();
-    // Trace waits while a route is shown; a card click leaves the route for that card.
-    expect(explore(s, { type: 'toggleTrace' }).trace).toBe(false);
-    expect(explore(s, { type: 'select', id: 'db' })).toMatchObject({ route: null, selected: 'db' });
-    expect(explore(s, { type: 'toggleRoute' }).route).toBeNull();
+    // A route never comes back as trace: ending it returns to plain selection.
+    expect(explore(s, { type: 'clear' }).mode).toEqual({ kind: 'neighbours' });
+    expect(explore(s, { type: 'toggleRoute' }).mode).toEqual({ kind: 'neighbours' });
+    // Trace waits while a route is shown; a card click leaves the route for that card, an empty click keeps it.
+    expect(explore(s, { type: 'toggleTrace' })).toBe(s);
+    expect(explore(s, { type: 'select', id: 'db' })).toMatchObject({ mode: { kind: 'neighbours' }, selected: 'db' });
+    expect(explore(s, { type: 'select', id: null }).mode).toBe(s.mode);
+  });
+
+  it('ends a route at any stage of picking, and trace waits through it', () => {
+    for (const s of [picking(INITIAL), explore(picking(INITIAL), { type: 'select', id: 'api' })]) {
+      expect(explore(s, { type: 'clear' }).mode).toEqual({ kind: 'neighbours' });
+      expect(explore(s, { type: 'toggleRoute' }).mode).toEqual({ kind: 'neighbours' });
+      expect(explore(s, { type: 'toggleTrace' })).toBe(s);
+    }
+  });
+
+  it('a revealing selection while picking picks an end and leaves the camera alone', () => {
+    const s = explore(picking(INITIAL), { type: 'select', id: 'api', reveal: true });
+    expect(s).toMatchObject({ mode: { kind: 'pickEnd', from: 'api' }, reveal: 0, selected: null });
+  });
+
+  it('knows which modes are routing, and which one has a route to show', () => {
+    const modes: Mode[] = [{ kind: 'neighbours' }, { kind: 'trace' }, { kind: 'pickStart' }, { kind: 'pickEnd', from: 'a' }, { kind: 'route', from: 'a', to: 'b' }];
+    expect(modes.map(isRouting)).toEqual([false, false, true, true, true]);
+    expect(modes.map(routeOf)).toEqual([null, null, null, null, modes[4]]);
   });
 
   it('plays the flow as a mode: survives clear and deep links', () => {
@@ -87,7 +114,7 @@ describe('route picking', () => {
     expect(s.playing).toBe(true);
     expect(explore(s, { type: 'clear' }).playing).toBe(true);
     expect(formatHash(s)).toBe('#play=1');
-    expect(parseHash('#route=api~db&play=1', known)).toMatchObject({ playing: true, route: { from: 'api', to: 'db' } });
+    expect(parseHash('#route=api~db&play=1', known)).toMatchObject({ playing: true, mode: { kind: 'route', from: 'api', to: 'db' } });
     expect(parseHash('#play=yes', known).playing).toBe(false);
     expect(explore(s, { type: 'togglePlay' }).playing).toBe(false);
   });
@@ -104,9 +131,7 @@ describe('route picking', () => {
   });
 
   it('reads a route from the hash, dropping unknown ends', () => {
-    expect(parseHash('#route=api~db', known).route).toEqual({ from: 'api', to: 'db' });
-    expect(parseHash('#route=api~ghost', known).route).toBeNull();
-    expect(parseHash('#route=api', known).route).toBeNull();
-    expect(parseHash('#route=api~api', known).route).toBeNull();
+    expect(parseHash('#route=api~db', known).mode).toEqual({ kind: 'route', from: 'api', to: 'db' });
+    for (const bad of ['#route=api~ghost', '#route=api', '#route=api~api', '#route=~db']) expect(parseHash(bad, known).mode).toEqual({ kind: 'neighbours' });
   });
 });

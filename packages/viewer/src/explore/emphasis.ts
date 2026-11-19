@@ -1,6 +1,6 @@
 import { TYPE_LABELS, type DiagramDraft, type DiagramNode, type NodeType } from '@stackmap/core';
 import { reachable, routeBetween, type Graph } from './graph';
-import type { ExploreState } from './state';
+import { routeOf, type ExploreState } from './state';
 
 export type NodeEmphasis = 'focus' | 'normal' | 'dim';
 export interface EdgeEmphasis {
@@ -27,16 +27,17 @@ export function searchMatches(draft: DiagramDraft, query: string): DiagramNode[]
 }
 
 /** The explorer state emphasis reads; playback fields (playing, speed) and reveal don't change what's lit. */
-export type EmphasisInput = Pick<ExploreState, 'peek' | 'view' | 'query' | 'trace' | 'selected' | 'route' | 'routing' | 'hiddenTypes'>;
+export type EmphasisInput = Pick<ExploreState, 'peek' | 'view' | 'query' | 'mode' | 'selected' | 'hiddenTypes'>;
 
 export function emphasis(draft: DiagramDraft, graph: Graph, s: EmphasisInput): Emphasis {
   if (s.peek) return peekAt(draft, s.peek);
   const view = s.view ? new Set(draft.views?.find((v) => v.id === s.view)?.nodes ?? []) : null;
   const q = s.query?.trim() ? new Set(searchMatches(draft, s.query).map((n) => n.id)) : null;
-  const trace = s.trace && s.selected && !s.route ? reachable(graph, s.selected) : null;
+  const trace = s.mode.kind === 'trace' && s.selected ? reachable(graph, s.selected) : null;
+  const shown = routeOf(s.mode);
   // A route with no path still dims everything but its two ends.
-  const route = s.route ? (routeBetween(graph, s.route.from, s.route.to) ?? { nodes: new Set([s.route.from, s.route.to]), edges: new Set<string>() }) : null;
-  const ends = s.route ? new Set([s.route.from, s.route.to]) : s.routing?.next === 'to' ? new Set([s.routing.start]) : null;
+  const route = shown ? (routeBetween(graph, shown.from, shown.to) ?? { nodes: new Set([shown.from, shown.to]), edges: new Set<string>() }) : null;
+  const ends = shown ? new Set([shown.from, shown.to]) : s.mode.kind === 'pickEnd' ? new Set([s.mode.from]) : null;
   const typeOf = new Map(draft.nodes.map((n) => [n.id, n.type]));
   // A selection on its own keeps its neighbours lit; trace and route widen or replace that.
   const near =

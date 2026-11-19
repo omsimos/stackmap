@@ -6,6 +6,7 @@ import { useFlow } from '../motion/useFlow';
 import { hasFlow } from '../motion/flowOf';
 import { useSceneReveal } from '../motion/useSceneReveal';
 import { useExplore } from '../explore/ExploreContext';
+import { routeOf } from '../explore/state';
 import { useInScope } from '../explore/scope';
 import { routeBetween } from '../explore/graph';
 import { inMenu } from '../chrome/Toolbar';
@@ -45,15 +46,16 @@ function useCameraEffects(scene: Scene, camera: Camera, restored: boolean) {
     else camera.fit();
   }, [state.view, draft, rectOf, camera]);
   // A new route frames everything on it.
-  const shownRoute = useRef(restored ? state.route : null);
+  const route = routeOf(state.mode);
+  const shownRoute = useRef(restored ? route : null);
   useEffect(() => {
-    if (shownRoute.current === state.route) return;
-    shownRoute.current = state.route;
-    if (!state.route) return;
-    const on = routeBetween(graph, state.route.from, state.route.to)?.nodes ?? new Set([state.route.from, state.route.to]);
+    if (shownRoute.current === route) return;
+    shownRoute.current = route;
+    if (!route) return;
+    const on = routeBetween(graph, route.from, route.to)?.nodes ?? new Set([route.from, route.to]);
     const box = union([...on].flatMap((id) => rectOf.get(id) ?? []));
     if (box) camera.fitRect(box);
-  }, [state.route, graph, rectOf, camera]);
+  }, [route, graph, rectOf, camera]);
   // The reveal a live reload restores from the hash is already on screen.
   const restoredReveal = useRef(restored ? state.reveal : -1);
   const latest = useRef({ state, draft });

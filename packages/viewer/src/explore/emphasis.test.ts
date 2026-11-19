@@ -49,11 +49,32 @@ describe('emphasis', () => {
   });
 
   it('trace dims everything outside the selection’s upstream and downstream', () => {
-    const e = run({ selected: 'db', trace: true });
+    const e = run({ selected: 'db', mode: { kind: 'trace' } });
     expect(e.nodes.get('web')).toBe('normal');
     expect(e.nodes.get('mail')).toBe('dim');
     expect(e.edges.get('e1')).toEqual({ dim: false, tint: 'client' });
     expect(e.edges.get('e3')).toEqual({ dim: true, tint: null });
+  });
+
+  it('while picking a route only its start is lit; a shown route lights its path and both ends', () => {
+    expect([...run({ mode: { kind: 'pickStart' } }).nodes.values()].every((v) => v === 'normal')).toBe(true);
+    const picking = run({ mode: { kind: 'pickEnd', from: 'web' } });
+    expect(picking.nodes.get('web')).toBe('focus');
+    expect(picking.nodes.get('db')).toBe('normal');
+    const route = run({ mode: { kind: 'route', from: 'web', to: 'db' } });
+    expect([...route.nodes.entries()]).toEqual([['web', 'focus'], ['api', 'normal'], ['db', 'focus'], ['mail', 'dim']]);
+    expect(route.edges.get('e2')).toEqual({ dim: false, tint: 'service' });
+    expect(route.edges.get('e3')).toEqual({ dim: true, tint: null });
+    expect(route.active).toBe(true);
+  });
+
+  it('a route with no path dims everything but its two ends', () => {
+    const e = run({ mode: { kind: 'route', from: 'db', to: 'mail' } });
+    expect([...e.nodes.entries()]).toEqual([['web', 'dim'], ['api', 'dim'], ['db', 'focus'], ['mail', 'focus']]);
+  });
+
+  it('trace with nothing selected lights nothing yet', () => {
+    expect(run({ mode: { kind: 'trace' } }).active).toBe(false);
   });
 
   it('view, lens and search each dim what they exclude, and compose', () => {
